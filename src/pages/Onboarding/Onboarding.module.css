@@ -46,8 +46,13 @@
 }
 .navSignUp:hover { border-color: #2d6a35; color: #1e3d22; background: #f2f9e4; }
 .navLogin {
-  display: flex; align-items: center; gap: 7px;
-  padding: 8px 18px; border-radius: 100px; background: #a8d832; border: none;
+  display: flex; 
+  align-items: center; 
+  gap: 7px;
+  padding: 8px 18px; 
+  border-radius: 100px; 
+  background: #a8d832; 
+  border: none;
   font-family: var(--font); font-size: 13px; font-weight: 700;
   color: #141f15; cursor: pointer; letter-spacing: -0.01em;
   transition: background 0.2s ease, transform 0.15s ease;
@@ -85,10 +90,10 @@
   position: absolute; inset: 0;
   background: linear-gradient(
     175deg,
-    rgba(0,0,0,0.12) 0%,
-    rgba(0,0,0,0.10) 28%,
-    rgba(10,20,12,0.62) 58%,
-    rgba(10,20,12,0.94) 100%
+    rgba(0,0,0,0.08) 0%,
+    rgba(0,0,0,0.06) 28%,
+    rgba(10,20,12,0.35) 58%,
+    rgba(10,20,12,0.6) 100%
   );
 }
 

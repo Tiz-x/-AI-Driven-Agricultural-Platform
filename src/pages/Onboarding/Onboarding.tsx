@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RiLeafFill } from 'react-icons/ri'
 import { BsArrowRight } from 'react-icons/bs'
+// import cassava from './cassave.jpeg'
 import styles from './Onboarding.module.css'
 
 export default function Onboarding() {
