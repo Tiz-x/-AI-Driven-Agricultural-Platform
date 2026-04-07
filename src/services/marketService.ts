@@ -1,496 +1,462 @@
-/* ═══════════════════════════════════════════════════════
-   services/marketService.ts
+// src/services/marketService.ts
 
-   Mock marketplace engine — runs entirely in localStorage.
-   Real matching algorithm (location + quantity).
-   When Node.js backend is ready, replace each function
-   body with an API call. The UI never changes.
-   ═══════════════════════════════════════════════════════ */
-
-// ── Types ──────────────────────────────────────────────
 export type CropType = 'Maize' | 'Tomato' | 'Cassava' | 'Pepper'
-export type ListingStatus = 'available' | 'matched' | 'partial' | 'sold'
-export type DemandStatus  = 'pending'   | 'matched' | 'waitlist'
-export type MatchStatus   = 'confirmed' | 'pending_delivery' | 'delivered'
+
+export const AKURE_AREAS = [
+  'Oba-Ile', 'Ijapo Estate', 'Oke-Aro', 'Arakale', 'Isolo',
+  'Oda', 'Oke-Ogba', 'Ijomu', 'Ayedun', 'Alagbaka'
+]
 
 export interface Listing {
-  id:           string
-  sellerId:     string
-  sellerName:   string
-  sellerEmail:  string
-  cropType:     CropType
-  quantity:     number        // kg
-  pricePerKg:   number        // ₦
-  location:     string        // Akure area
-  description:  string
-  status:       ListingStatus
-  createdAt:    string
+  id: string
+  sellerId: string
+  sellerName: string
+  sellerEmail: string
+  cropType: CropType
+  quantity: number
   remainingQty: number
+  location: string
+  description: string
+  photoUrl?: string
+  status: 'available' | 'partial' | 'sold'
+  createdAt: string
+  distance?: number
+  requests?: Request[]
 }
 
 export interface Demand {
-  id:          string
-  buyerId:     string
-  buyerName:   string
-  buyerEmail:  string
-  cropType:    CropType
-  quantity:    number
-  maxPrice:    number
-  location:    string
-  status:      DemandStatus
-  createdAt:   string
-  matchedQty:  number
-}
-
-export interface Match {
-  id:          string
-  listingId:   string
-  demandId:    string
-  sellerId:    string
-  sellerName:  string
-  sellerEmail: string
-  buyerId:     string
-  buyerName:   string
-  buyerEmail:  string
-  cropType:    CropType
-  quantity:    number
-  pricePerKg:  number
-  totalPrice:  number
-  sellerLoc:   string
-  buyerLoc:    string
-  distance:    number        // km (simulated)
-  status:      MatchStatus
-  matchedAt:   string
-  notification: 'sent' | 'pending'
-}
-
-export interface Notification {
-  id:        string
-  userId:    string
-  type:      'match' | 'waitlist' | 'delivery' | 'system'
-  title:     string
-  message:   string
-  read:      boolean
+  id: string
+  buyerId: string
+  buyerName: string
+  buyerEmail: string
+  cropType: CropType
+  quantity: number
+  maxPrice?: number  // Optional - only for internal matching
+  location: string
+  status: 'pending' | 'matched' | 'expired'
   createdAt: string
 }
 
-// ── Akure Areas + distance matrix ──────────────────────
-// Real Akure neighbourhoods for location matching
-export const AKURE_AREAS = [
-  'Adegbola', 'Alagbaka', 'Araromi', 'Ijoka',
-  'Isinkan', 'FUTA Road', 'Oba-Ile', 'Oke-Irese',
-  'Shagari Village', 'Isikan', 'Oyemekun', 'Okuta-Pupa',
-]
-
-// Simulated distance between any two Akure areas (km)
-function getDistance(loc1: string, loc2: string): number {
-  if (loc1 === loc2) return 0
-  // Seed a consistent pseudo-random distance 1–15km based on names
-  const seed = (loc1.charCodeAt(0) + loc2.charCodeAt(0)) % 14 + 1
-  return seed
+export interface Request {
+  id: string
+  listingId: string
+  buyerId: string
+  buyerName: string
+  buyerEmail: string
+  requestedQty: number
+  message: string
+  status: 'pending' | 'accepted' | 'rejected' | 'completed'
+  createdAt: string
+  updatedAt: string
 }
 
-// ── Storage keys ────────────────────────────────────────
-const KEYS = {
-  listings:      'agf_listings',
-  demands:       'agf_demands',
-  matches:       'agf_matches',
-  notifications: 'agf_notifications',
+export interface Match {
+  id: string
+  listingId: string
+  demandId?: string
+  requestId: string
+  cropType: CropType
+  buyerId: string
+  buyerName: string
+  buyerEmail: string
+  buyerLoc: string
+  sellerId: string
+  sellerName: string
+  sellerEmail: string
+  sellerLoc: string
+  quantity: number
+  distance: number
+  status: 'confirmed' | 'pending_delivery' | 'delivered'
+  matchedAt: string
 }
 
-// ── Helpers ─────────────────────────────────────────────
-function uid(): string {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
-}
-function now(): string {
-  return new Date().toISOString()
-}
-function read<T>(key: string): T[] {
-  try { return JSON.parse(localStorage.getItem(key) ?? '[]') } catch { return [] }
-}
-function write<T>(key: string, data: T[]): void {
-  localStorage.setItem(key, JSON.stringify(data))
+export interface Notification {
+  id: string
+  userId: string
+  type: 'request' | 'match' | 'delivery' | 'waitlist'
+  title: string
+  message: string
+  read: boolean
+  data?: any
+  createdAt: string
 }
 
-// ── Seed demo data (first time only) ───────────────────
-function seedIfEmpty() {
-  if (read(KEYS.listings).length > 0) return
+// Mock data store
+let listings: Listing[] = []
+let demands: Demand[] = []
+let requests: Request[] = []
+let matches: Match[] = []
+let notifications: Notification[] = []
 
-  const listings: Listing[] = [
-    {
-      id: uid(), sellerId: 'seller-001', sellerName: 'Musa Ibrahim',
-      sellerEmail: 'musa@farm.ng', cropType: 'Maize', quantity: 500,
-      remainingQty: 500, pricePerKg: 180, location: 'Alagbaka',
-      description: 'Fresh maize, harvested this week. Grade A quality.',
-      status: 'available', createdAt: new Date(Date.now() - 86400000).toISOString(),
-    },
-    {
-      id: uid(), sellerId: 'seller-002', sellerName: 'Taiwo Adeyemi',
-      sellerEmail: 'taiwo@farm.ng', cropType: 'Tomato', quantity: 200,
-      remainingQty: 200, pricePerKg: 320, location: 'Oba-Ile',
-      description: 'Ripe tomatoes, firm and fresh. Ready for immediate pickup.',
-      status: 'available', createdAt: new Date(Date.now() - 172800000).toISOString(),
-    },
-    {
-      id: uid(), sellerId: 'seller-003', sellerName: 'Ngozi Okonkwo',
-      sellerEmail: 'ngozi@farm.ng', cropType: 'Cassava', quantity: 800,
-      remainingQty: 800, pricePerKg: 120, location: 'Isinkan',
-      description: 'Premium cassava, suitable for garri and starch processing.',
-      status: 'available', createdAt: new Date(Date.now() - 259200000).toISOString(),
-    },
-    {
-      id: uid(), sellerId: 'seller-004', sellerName: 'Emeka Obi',
-      sellerEmail: 'emeka@farm.ng', cropType: 'Pepper', quantity: 150,
-      remainingQty: 150, pricePerKg: 550, location: 'FUTA Road',
-      description: 'Hot pepper (Tatashe blend), sun-dried and fresh mix available.',
-      status: 'available', createdAt: new Date(Date.now() - 345600000).toISOString(),
-    },
-    {
-      id: uid(), sellerId: 'seller-005', sellerName: 'Funke Balogun',
-      sellerEmail: 'funke@farm.ng', cropType: 'Maize', quantity: 300,
-      remainingQty: 300, pricePerKg: 170, location: 'Ijoka',
-      description: 'Yellow maize, dried and bagged. Large quantities available.',
-      status: 'available', createdAt: new Date(Date.now() - 432000000).toISOString(),
-    },
-    {
-      id: uid(), sellerId: 'seller-006', sellerName: 'Adebayo Ojo',
-      sellerEmail: 'adebayo@farm.ng', cropType: 'Tomato', quantity: 100,
-      remainingQty: 100, pricePerKg: 300, location: 'Oyemekun',
-      description: 'Cherry tomatoes, perfect for restaurants and hotels.',
-      status: 'available', createdAt: new Date(Date.now() - 518400000).toISOString(),
-    },
-  ]
-
-  write(KEYS.listings, listings)
+// Helper functions
+function generateId() {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
 }
 
-// ── CORE MATCHING ENGINE ─────────────────────────────────
-// This is the real logic that will power the backend too.
-// Matches by: 1) same crop 2) quantity 3) closest location
-function runMatchingEngine(
-  newDemand: Demand,
-  listings:  Listing[],
-): { matched: Listing[]; totalQty: number } {
-  // Step 1: Filter available listings for same crop
-  const eligible = listings.filter(
-    l => l.cropType === newDemand.cropType &&
-         l.status !== 'sold' &&
-         l.remainingQty > 0 &&
-         l.sellerId !== newDemand.buyerId
-  )
-  if (eligible.length === 0) return { matched: [], totalQty: 0 }
-
-  // Step 2: Sort by distance (closest first — Akure proximity)
-  const withDistance = eligible.map(l => ({
-    listing:  l,
-    distance: getDistance(l.location, newDemand.location),
-  }))
-  withDistance.sort((a, b) => a.distance - b.distance)
-
-  // Step 3: Greedily fill demand quantity
-  let remaining = newDemand.quantity
-  const matched: Listing[] = []
-
-  for (const { listing } of withDistance) {
-    if (remaining <= 0) break
-    matched.push(listing)
-    remaining -= listing.remainingQty
-  }
-
-  const totalQty = matched.reduce((s, l) => s + Math.min(l.remainingQty, newDemand.quantity), 0)
-  return { matched, totalQty: Math.min(totalQty, newDemand.quantity) }
+function calculateDistance(loc1: string, loc2: string): number {
+  const index1 = AKURE_AREAS.indexOf(loc1)
+  const index2 = AKURE_AREAS.indexOf(loc2)
+  if (index1 === -1 || index2 === -1) return 15
+  return Math.abs(index1 - index2) * 2 + 5
 }
 
-// ── Notification helper ─────────────────────────────────
-function addNotification(userId: string, notif: Omit<Notification, 'id' | 'createdAt'>) {
-  const notifs = read<Notification>(KEYS.notifications)
-  notifs.unshift({ ...notif, id: uid(), createdAt: now() })
-  write(KEYS.notifications, notifs.slice(0, 50)) // keep last 50
-}
-
-// ── PUBLIC API ───────────────────────────────────────────
+// Initialize with sample listings (with photos)
 export const marketService = {
-
-  // ── init ──
-  init() { seedIfEmpty() },
-
-  // ── LISTINGS ──
-  getListings(): Listing[] {
-    return read<Listing>(KEYS.listings)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  init() {
+    if (listings.length === 0) {
+      listings = [
+        {
+          id: '1',
+          sellerId: 'seller-1',
+          sellerName: 'Adewale Okafor',
+          sellerEmail: 'adewale@example.com',
+          cropType: 'Maize',
+          quantity: 500,
+          remainingQty: 500,
+          location: 'Oba-Ile',
+          description: 'Fresh yellow maize harvested this week. High quality, no pesticides.',
+          photoUrl: 'https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=400',
+          status: 'available',
+          createdAt: new Date().toISOString(),
+          requests: []
+        },
+        {
+          id: '2',
+          sellerId: 'seller-2',
+          sellerName: 'Chinonso Eze',
+          sellerEmail: 'chinonso@example.com',
+          cropType: 'Tomato',
+          quantity: 300,
+          remainingQty: 300,
+          location: 'Ijapo Estate',
+          description: 'Ripe organic tomatoes, perfect for cooking and salads.',
+          photoUrl: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400',
+          status: 'available',
+          createdAt: new Date().toISOString(),
+          requests: []
+        },
+        {
+          id: '3',
+          sellerId: 'seller-3',
+          sellerName: 'Folake Adeyemi',
+          sellerEmail: 'folake@example.com',
+          cropType: 'Cassava',
+          quantity: 1000,
+          remainingQty: 1000,
+          location: 'Oke-Aro',
+          description: 'High starch cassava, good for garri and fufu production.',
+          photoUrl: 'https://images.unsplash.com/photo-1590164552852-4ff5df7b251d?w=400',
+          status: 'available',
+          createdAt: new Date().toISOString(),
+          requests: []
+        },
+        {
+          id: '4',
+          sellerId: 'seller-1',
+          sellerName: 'Adewale Okafor',
+          sellerEmail: 'adewale@example.com',
+          cropType: 'Pepper',
+          quantity: 200,
+          remainingQty: 150,
+          location: 'Oba-Ile',
+          description: 'Hot habanero peppers, very spicy and fresh.',
+          photoUrl: 'https://images.unsplash.com/photo-1587394929000-7d3c2a4d243f?w=400',
+          status: 'partial',
+          createdAt: new Date().toISOString(),
+          requests: []
+        }
+      ]
+    }
   },
 
-  getListingsByUser(userId: string): Listing[] {
-    return read<Listing>(KEYS.listings).filter(l => l.sellerId === userId)
+  getListings() {
+    return listings.map(l => ({
+      ...l,
+      distance: calculateDistance(l.location, 'Ijapo Estate')
+    }))
   },
 
-  postListing(data: Omit<Listing, 'id' | 'createdAt' | 'status' | 'remainingQty'>): Listing {
-    const listings = read<Listing>(KEYS.listings)
-    const listing: Listing = {
-      ...data,
-      id:          uid(),
-      status:      'available',
+  getListingsBySeller(sellerId: string) {
+    return listings.filter(l => l.sellerId === sellerId)
+  },
+
+  getRequestsByBuyer(buyerId: string) {
+    return requests.filter(r => r.buyerId === buyerId)
+  },
+
+  getRequestsBySeller(sellerId: string) {
+    const sellerListings = listings.filter(l => l.sellerId === sellerId)
+    return requests.filter(r => sellerListings.some(l => l.id === r.listingId))
+  },
+
+  getMatchesByUser(userId: string) {
+    return matches.filter(m => m.buyerId === userId || m.sellerId === userId)
+  },
+
+  getWaitlistByUser(userId: string) {
+    return demands.filter(d => d.buyerId === userId && d.status === 'pending')
+  },
+
+  getNotifications(userId: string) {
+    return notifications.filter(n => n.userId === userId).sort((a, b) => 
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+  },
+
+  postListing(data: Omit<Listing, 'id' | 'remainingQty' | 'status' | 'createdAt' | 'requests'>) {
+    const newListing: Listing = {
+      id: generateId(),
       remainingQty: data.quantity,
-      createdAt:   now(),
+      status: 'available',
+      createdAt: new Date().toISOString(),
+      requests: [],
+      ...data
     }
-    listings.unshift(listing)
-    write(KEYS.listings, listings)
-
-    // After posting a listing, check if any waiting demands can be matched
-    marketService._checkWaitlistForListing(listing)
-
-    return listing
+    listings.unshift(newListing)
+    
+    // Check for matching demands
+    const matchingDemands = demands.filter(d => 
+      d.status === 'pending' &&
+      d.cropType === data.cropType &&
+      d.quantity <= data.quantity &&
+      calculateDistance(d.location, data.location) <= 15
+    )
+    
+    matchingDemands.forEach(demand => {
+      this.createMatchFromDemand(demand, newListing)
+    })
+    
+    return newListing
   },
 
-  // ── DEMANDS ──
-  getDemands(): Demand[] {
-    return read<Demand>(KEYS.demands)
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  },
-
-  getDemandsByUser(userId: string): Demand[] {
-    return read<Demand>(KEYS.demands).filter(d => d.buyerId === userId)
-  },
-
-  postDemand(data: Omit<Demand, 'id' | 'createdAt' | 'status' | 'matchedQty'>): {
-    demand: Demand
-    matches: Match[]
-    matched: boolean
-  } {
-    const listings = read<Listing>(KEYS.listings)
-    const demand: Demand = {
-      ...data,
-      id:         uid(),
-      status:     'pending',
-      matchedQty: 0,
-      createdAt:  now(),
+  postDemand(data: Omit<Demand, 'id' | 'status' | 'createdAt'>) {
+    const newDemand: Demand = {
+      id: generateId(),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      ...data
     }
-
-    // Run matching engine
-    const { matched: matchedListings, totalQty } = runMatchingEngine(demand, listings)
-
-    const newMatches: Match[] = []
-
-    if (matchedListings.length > 0) {
-      demand.status     = 'matched'
-      demand.matchedQty = totalQty
-
-      let remaining = demand.quantity
-
-      // Create match records + update listing quantities
-      const updatedListings = read<Listing>(KEYS.listings)
-      for (const listing of matchedListings) {
-        if (remaining <= 0) break
-        const qty  = Math.min(listing.remainingQty, remaining)
-        remaining -= qty
-
-        const match: Match = {
-          id:          uid(),
-          listingId:   listing.id,
-          demandId:    demand.id,
-          sellerId:    listing.sellerId,
-          sellerName:  listing.sellerName,
-          sellerEmail: listing.sellerEmail,
-          buyerId:     demand.buyerId,
-          buyerName:   demand.buyerName,
-          buyerEmail:  demand.buyerEmail,
-          cropType:    demand.cropType,
-          quantity:    qty,
-          pricePerKg:  listing.pricePerKg,
-          totalPrice:  qty * listing.pricePerKg,
-          sellerLoc:   listing.location,
-          buyerLoc:    demand.location,
-          distance:    getDistance(listing.location, demand.location),
-          status:      'confirmed',
-          matchedAt:   now(),
-          notification: 'sent',
-        }
-        newMatches.push(match)
-
-        // Update listing remaining quantity
-        const li = updatedListings.find(l => l.id === listing.id)
-        if (li) {
-          li.remainingQty -= qty
-          if (li.remainingQty <= 0) li.status = 'sold'
-          else if (li.remainingQty < li.quantity) li.status = 'partial'
-        }
-      }
-
-      write(KEYS.listings, updatedListings)
-
-      // Save matches
-      const allMatches = read<Match>(KEYS.matches)
-      write(KEYS.matches, [...newMatches, ...allMatches])
-
-      // Send notifications (mock)
-      for (const match of newMatches) {
-        addNotification(match.buyerId, {
-          userId:  match.buyerId,
-          type:    'match',
-          title:   '🎉 Match Found!',
-          message: `We matched you with ${match.sellerName} for ${match.quantity}kg of ${match.cropType} at ₦${match.pricePerKg}/kg. Total: ₦${match.totalPrice.toLocaleString()}. Distance: ${match.distance}km.`,
-          read:    false,
-        })
-        addNotification(match.sellerId, {
-          userId:  match.sellerId,
-          type:    'match',
-          title:   '🎉 Buyer Found!',
-          message: `${match.buyerName} wants to buy ${match.quantity}kg of your ${match.cropType} at ₦${match.pricePerKg}/kg. Total: ₦${match.totalPrice.toLocaleString()}. Distance: ${match.distance}km.`,
-          read:    false,
-        })
-      }
-
+    
+    // Find matching listings
+    const matchingListings = listings.filter(l => 
+      l.status !== 'sold' &&
+      l.cropType === data.cropType &&
+      l.remainingQty >= data.quantity &&
+      calculateDistance(l.location, data.location) <= 15
+    ).sort((a, b) => (a.distance || 0) - (b.distance || 0))
+    
+    if (matchingListings.length > 0) {
+      const matches = matchingListings.slice(0, 3).map(listing => ({
+        listing,
+        distance: calculateDistance(listing.location, data.location)
+      }))
+      return { demand: newDemand, matches, matched: true }
     } else {
-      // No match — add to waitlist
-      demand.status = 'waitlist'
-      addNotification(demand.buyerId, {
-        userId:  demand.buyerId,
-        type:    'waitlist',
-        title:   '⏳ Added to Waitlist',
-        message: `No seller found for ${demand.quantity}kg of ${demand.cropType} right now. We'll notify you the moment one becomes available in Akure.`,
-        read:    false,
+      demands.push(newDemand)
+      return { demand: newDemand, matches: [], matched: false }
+    }
+  },
+
+  createRequest(listingId: string, buyerId: string, buyerName: string, buyerEmail: string, requestedQty: number, message: string) {
+    const listing = listings.find(l => l.id === listingId)
+    if (!listing) throw new Error('Listing not found')
+    if (requestedQty > listing.remainingQty) throw new Error('Requested quantity exceeds available')
+    
+    const newRequest: Request = {
+      id: generateId(),
+      listingId,
+      buyerId,
+      buyerName,
+      buyerEmail,
+      requestedQty,
+      message,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    
+    if (!listing.requests) listing.requests = []
+    listing.requests.push(newRequest)
+    
+    // Create notification for seller
+    this.addNotification({
+      userId: listing.sellerId,
+      type: 'request',
+      title: 'New Purchase Request',
+      message: `${buyerName} wants to buy ${requestedQty}kg of your ${listing.cropType}`,
+      data: { requestId: newRequest.id, listingId }
+    })
+    
+    return newRequest
+  },
+
+  acceptRequest(requestId: string) {
+    const request = this.findRequestById(requestId)
+    if (!request) throw new Error('Request not found')
+    
+    const listing = listings.find(l => l.id === request.listingId)
+    if (!listing) throw new Error('Listing not found')
+    
+    request.status = 'accepted'
+    request.updatedAt = new Date().toISOString()
+    
+    // Update listing quantity
+    listing.remainingQty -= request.requestedQty
+    if (listing.remainingQty === 0) {
+      listing.status = 'sold'
+    } else if (listing.remainingQty < listing.quantity) {
+      listing.status = 'partial'
+    }
+    
+    // Create match
+    const newMatch: Match = {
+      id: generateId(),
+      listingId: listing.id,
+      requestId: request.id,
+      cropType: listing.cropType,
+      buyerId: request.buyerId,
+      buyerName: request.buyerName,
+      buyerEmail: request.buyerEmail,
+      buyerLoc: 'Akure', // Would come from user profile
+      sellerId: listing.sellerId,
+      sellerName: listing.sellerName,
+      sellerEmail: listing.sellerEmail,
+      sellerLoc: listing.location,
+      quantity: request.requestedQty,
+      distance: calculateDistance(listing.location, 'Akure'),
+      status: 'confirmed',
+      matchedAt: new Date().toISOString()
+    }
+    
+    matches.push(newMatch)
+    
+    // Notify buyer
+    this.addNotification({
+      userId: request.buyerId,
+      type: 'match',
+      title: 'Request Accepted! 🎉',
+      message: `${listing.sellerName} accepted your request for ${request.requestedQty}kg of ${listing.cropType}. Contact them to arrange pickup/delivery.`,
+      data: { matchId: newMatch.id }
+    })
+    
+    // Notify seller
+    this.addNotification({
+      userId: listing.sellerId,
+      type: 'match',
+      title: 'You have a new match!',
+      message: `${request.buyerName} accepted your offer. Contact them to complete the transaction.`,
+      data: { matchId: newMatch.id }
+    })
+    
+    return newMatch
+  },
+
+  rejectRequest(requestId: string) {
+    const request = this.findRequestById(requestId)
+    if (!request) throw new Error('Request not found')
+    
+    request.status = 'rejected'
+    request.updatedAt = new Date().toISOString()
+    
+    const listing = listings.find(l => l.id === request.listingId)
+    if (listing?.sellerId) {
+      this.addNotification({
+        userId: request.buyerId,
+        type: 'request',
+        title: 'Request Declined',
+        message: `Your request for ${request.requestedQty}kg was declined. Try another listing.`,
+        data: { requestId }
       })
     }
-
-    // Save demand
-    const demands = read<Demand>(KEYS.demands)
-    demands.unshift(demand)
-    write(KEYS.demands, demands)
-
-    return { demand, matches: newMatches, matched: newMatches.length > 0 }
   },
 
-  // When a new listing is posted, try to match waiting demands
-  _checkWaitlistForListing(newListing: Listing) {
-    const demands  = read<Demand>(KEYS.demands)
-    const waitlist = demands.filter(
-      d => d.status === 'waitlist' && d.cropType === newListing.cropType
-    )
-
-    for (const demand of waitlist) {
-      const listings = read<Listing>(KEYS.listings)
-      const { matched: matchedListings, totalQty } = runMatchingEngine(demand, listings)
-      if (matchedListings.length > 0) {
-        // Re-run full postDemand logic for this demand
-        // (simplified: just notify — full re-match happens on backend)
-        addNotification(demand.buyerId, {
-          userId:  demand.buyerId,
-          type:    'match',
-          title:   '🎉 Match Now Available!',
-          message: `A seller just listed ${newListing.quantity}kg of ${newListing.cropType} near you in Akure. Check the marketplace to confirm your order!`,
-          read:    false,
-        })
-      }
+  findRequestById(requestId: string): Request | undefined {
+    for (const listing of listings) {
+      const found = listing.requests?.find(r => r.id === requestId)
+      if (found) return found
     }
+    return undefined
   },
 
-  // ── Direct buy (manual — buyer picks listing themselves) ──
-  buyDirectly(listingId: string, buyer: { id: string; name: string; email: string }, qty: number): Match | null {
-    const listings = read<Listing>(KEYS.listings)
-    const listing  = listings.find(l => l.id === listingId)
-    if (!listing || listing.remainingQty < qty) return null
-
-    const match: Match = {
-      id:          uid(),
-      listingId:   listing.id,
-      demandId:    'direct-' + uid(),
-      sellerId:    listing.sellerId,
-      sellerName:  listing.sellerName,
+  createMatchFromDemand(demand: Demand, listing: Listing) {
+    const request: Request = {
+      id: generateId(),
+      listingId: listing.id,
+      buyerId: demand.buyerId,
+      buyerName: demand.buyerName,
+      buyerEmail: demand.buyerEmail,
+      requestedQty: demand.quantity,
+      message: `Auto-matched from your demand for ${demand.quantity}kg`,
+      status: 'accepted',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    
+    if (!listing.requests) listing.requests = []
+    listing.requests.push(request)
+    
+    const newMatch: Match = {
+      id: generateId(),
+      listingId: listing.id,
+      requestId: request.id,
+      cropType: listing.cropType,
+      buyerId: demand.buyerId,
+      buyerName: demand.buyerName,
+      buyerEmail: demand.buyerEmail,
+      buyerLoc: demand.location,
+      sellerId: listing.sellerId,
+      sellerName: listing.sellerName,
       sellerEmail: listing.sellerEmail,
-      buyerId:     buyer.id,
-      buyerName:   buyer.name,
-      buyerEmail:  buyer.email,
-      cropType:    listing.cropType,
-      quantity:    qty,
-      pricePerKg:  listing.pricePerKg,
-      totalPrice:  qty * listing.pricePerKg,
-      sellerLoc:   listing.location,
-      buyerLoc:    'Akure',
-      distance:    getDistance(listing.location, 'Alagbaka'),
-      status:      'confirmed',
-      matchedAt:   now(),
-      notification: 'sent',
+      sellerLoc: listing.location,
+      quantity: demand.quantity,
+      distance: calculateDistance(listing.location, demand.location),
+      status: 'confirmed',
+      matchedAt: new Date().toISOString()
     }
-
-    // Update listing
-    listing.remainingQty -= qty
-    if (listing.remainingQty <= 0) listing.status = 'sold'
-    else listing.status = 'partial'
-    write(KEYS.listings, listings)
-
-    // Save match
-    const matches = read<Match>(KEYS.matches)
-    matches.unshift(match)
-    write(KEYS.matches, matches)
-
-    // Notify both
-    addNotification(buyer.id, {
-      userId:  buyer.id,
-      type:    'match',
-      title:   '✅ Purchase Confirmed!',
-      message: `You bought ${qty}kg of ${listing.cropType} from ${listing.sellerName} for ₦${match.totalPrice.toLocaleString()}. Delivery will be scheduled shortly.`,
-      read:    false,
+    
+    matches.push(newMatch)
+    demand.status = 'matched'
+    
+    this.addNotification({
+      userId: demand.buyerId,
+      type: 'match',
+      title: 'Auto-Match Found! 🎉',
+      message: `We found a seller for your ${demand.cropType} demand. Check your matches!`,
+      data: { matchId: newMatch.id }
     })
-    addNotification(listing.sellerId, {
-      userId:  listing.sellerId,
-      type:    'match',
-      title:   '✅ Sale Confirmed!',
-      message: `${buyer.name} purchased ${qty}kg of your ${listing.cropType} for ₦${match.totalPrice.toLocaleString()}.`,
-      read:    false,
+    
+    this.addNotification({
+      userId: listing.sellerId,
+      type: 'match',
+      title: 'New Match from Demand',
+      message: `${demand.buyerName} needs ${demand.quantity}kg of your ${listing.cropType}`,
+      data: { matchId: newMatch.id }
     })
-
-    return match
   },
 
-  // ── MATCHES ──
-  getMatches(): Match[] {
-    return read<Match>(KEYS.matches)
-      .sort((a, b) => new Date(b.matchedAt).getTime() - new Date(a.matchedAt).getTime())
+  addNotification(notif: Omit<Notification, 'id' | 'read' | 'createdAt'>) {
+    const newNotif: Notification = {
+      id: generateId(),
+      read: false,
+      createdAt: new Date().toISOString(),
+      ...notif
+    }
+    notifications.unshift(newNotif)
   },
 
-  getMatchesByUser(userId: string): Match[] {
-    return read<Match>(KEYS.matches).filter(
-      m => m.buyerId === userId || m.sellerId === userId
-    ).sort((a, b) => new Date(b.matchedAt).getTime() - new Date(a.matchedAt).getTime())
-  },
-
-  // ── NOTIFICATIONS ──
-  getNotifications(userId: string): Notification[] {
-    return read<Notification>(KEYS.notifications)
-      .filter(n => n.userId === userId)
-  },
-
-  markNotifRead(id: string) {
-    const notifs = read<Notification>(KEYS.notifications)
-    const n = notifs.find(n => n.id === id)
-    if (n) { n.read = true; write(KEYS.notifications, notifs) }
+  markNotifRead(notifId: string) {
+    const notif = notifications.find(n => n.id === notifId)
+    if (notif) notif.read = true
   },
 
   markAllRead(userId: string) {
-    const notifs = read<Notification>(KEYS.notifications)
-    notifs.filter(n => n.userId === userId).forEach(n => n.read = true)
-    write(KEYS.notifications, notifs)
+    notifications.forEach(n => {
+      if (n.userId === userId) n.read = true
+    })
   },
 
-  unreadCount(userId: string): number {
-    return read<Notification>(KEYS.notifications)
-      .filter(n => n.userId === userId && !n.read).length
-  },
-
-  // ── WAITLIST ──
-  getWaitlist(): Demand[] {
-    return read<Demand>(KEYS.demands)
-      .filter(d => d.status === 'waitlist')
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  },
-
-  getWaitlistByUser(userId: string): Demand[] {
-    return read<Demand>(KEYS.demands)
-      .filter(d => d.buyerId === userId && d.status === 'waitlist')
-  },
-
-  // ── CLEAR all data (dev only) ──
-  clearAll() {
-    Object.values(KEYS).forEach(k => localStorage.removeItem(k))
-  },
+  updateDeliveryStatus(matchId: string, status: Match['status']) {
+    const match = matches.find(m => m.id === matchId)
+    if (match) match.status = status
+  }
 }

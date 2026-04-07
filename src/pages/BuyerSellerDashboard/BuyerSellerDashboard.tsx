@@ -1,67 +1,111 @@
-import { useState, useEffect } from 'react'
+// src/pages/BuyerSellerDashboard/BuyerSellerDashboard.tsx
+
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { RiLeafFill } from 'react-icons/ri'
-import {
-  MdOutlineMenu, MdClose, MdOutlineSettings,
-  MdOutlineLogout, MdOutlineSwapHoriz, MdOutlineStorefront,
+import { 
+  RiLeafFill, 
+  RiMapPinLine, 
+  RiCheckboxCircleLine,
+  RiChatCheckLine,
+  RiNotificationLine,
+  RiUserLine,
+  RiSettings4Line,
+  RiLogoutBoxRLine,
+  RiExchangeLine,
+  RiStore3Line,
+  RiShoppingBagLine,
+  RiTimeLine,
+  RiCheckDoubleLine,
+  RiBellLine,
+  RiSeedlingLine,
+  RiShoppingCartLine,
+  RiArrowLeftLine,
+  RiSendPlaneLine,
+  RiMailSendLine,
+  RiImageAddLine,
+  RiHomeSmileLine
+} from 'react-icons/ri'
+import { 
+  GiCorn, 
+  GiTomato, 
+  GiChiliPepper,
+  GiTruck,
+  GiFarmer,
+  GiPlantRoots
+} from 'react-icons/gi'
+import { 
+  MdOutlineMenu, 
+  MdClose, 
+  MdCheckCircle, 
+  MdCancel,
+  MdCameraAlt
 } from 'react-icons/md'
-import {
-  BsPlus, BsShop, BsClockHistory, BsCheck2All,
-  BsBell, BsPerson, BsGeoAlt, BsArrowRight,
-} from 'react-icons/bs'
-import { GiWheat, GiTruck } from 'react-icons/gi'
-import { FaSeedling } from 'react-icons/fa'
-import {
-  marketService,
-  type Listing, type Demand, type Match,
-  type Notification, type CropType,
-  AKURE_AREAS,
-} from '../../services/marketService'
+import { BsArrowRight } from 'react-icons/bs'
+import { FaStore, FaSeedling } from 'react-icons/fa'
+import { marketService, type Listing, type Demand, type Match, type Notification, type CropType, type Request, AKURE_AREAS } from '../../services/marketService'
 import { authService } from '../../services/authService'
 import styles from './BuyerSellerDashboard.module.css'
 
-// ── Types ──────────────────────────────────────────────
-type Section = 'marketplace' | 'sell' | 'buy' | 'matches' | 'waitlist' | 'notifications'
-type Intent  = 'buy' | 'sell'
+type Section = 'marketplace' | 'myStore' | 'sell' | 'buy' | 'matches' | 'waitlist' | 'notifications' | 'requests'
+type Intent = 'buy' | 'sell'
 
 const CROPS: CropType[] = ['Maize', 'Tomato', 'Cassava', 'Pepper']
 
-const CROP_EMOJI: Record<CropType, string> = {
-  Maize: '🌽', Tomato: '🍅', Cassava: '🌿', Pepper: '🌶️',
+const CROP_ICON: Record<CropType, React.ReactNode> = {
+  Maize: <GiCorn size={20} />,
+  Tomato: <GiTomato size={20} />,
+  Cassava: <GiPlantRoots size={20} />,
+  Pepper: <GiChiliPepper size={20} />
 }
+
 const CROP_CSS: Record<CropType, string> = {
-  Maize: 'cropMaize', Tomato: 'cropTomato',
-  Cassava: 'cropCassava', Pepper: 'cropPepper',
+  Maize: 'cropMaize',
+  Tomato: 'cropTomato',
+  Cassava: 'cropCassava',
+  Pepper: 'cropPepper'
 }
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)
-  if (m < 1)  return 'just now'
+  if (m < 1) return 'just now'
   if (m < 60) return `${m}m ago`
   const h = Math.floor(m / 60)
   if (h < 24) return `${h}h ago`
   return `${Math.floor(h / 24)}d ago`
 }
 
-// ── Component ──────────────────────────────────────────
+// Helper for image fallback
+const getImageFallback = (cropType: CropType): string => {
+  const icons: Record<CropType, string> = {
+    Maize: '🌽',
+    Tomato: '🍅',
+    Cassava: '🌿',
+    Pepper: '🌶️'
+  }
+  return `data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"%3E%3Crect width="400" height="300" fill="%23f2f9e4"/%3E%3Ctext x="50%25" y="45%25" text-anchor="middle" font-family="Arial" font-size="64" fill="%23a8d832"%3E${encodeURIComponent(icons[cropType])}%3C/text%3E%3Ctext x="50%25" y="65%25" text-anchor="middle" font-family="Arial" font-size="14" fill="%239ead9f"%3ENo Image%3C/text%3E%3C/svg%3E`
+}
+
 export default function BuyerSellerDashboard() {
   const navigate = useNavigate()
-  const user     = authService.getUser() ?? { id: 'mock-001', name: 'Chioma Eze', email: 'buyer@test.com', role: 'buyer' }
+  const user = authService.getUser() ?? { id: 'mock-001', name: 'Chioma Eze', email: 'buyer@test.com', role: 'buyer' }
   const initials = user.name?.split(' ').map((n: string) => n[0]).join('').toUpperCase() ?? 'CE'
 
-  const [section,     setSection]     = useState<Section>('marketplace')
-  const [intent,      setIntent]      = useState<Intent>(user.role === 'seller' ? 'sell' : 'buy')
-  const [sidebarOpen, setSidebar]     = useState(false)
-  const [cropFilter,  setCropFilter]  = useState<CropType | 'All'>('All')
-  const [listings,    setListings]    = useState<Listing[]>([])
-  const [matches,     setMatches]     = useState<Match[]>([])
-  const [waitlist,    setWaitlist]    = useState<Demand[]>([])
-  const [notifs,      setNotifs]      = useState<Notification[]>([])
-  const [modal,       setModal]       = useState<null | { type: 'match' | 'waitlist' | 'buy'; data: any }>(null)
-  const [buyQty,      setBuyQty]      = useState<Record<string, number>>({})
+  const [section, setSection] = useState<Section>('marketplace')
+  const [intent, setIntent] = useState<Intent>(user.role === 'seller' ? 'sell' : 'buy')
+  const [sidebarOpen, setSidebar] = useState(false)
+  const [cropFilter, setCropFilter] = useState<CropType | 'All'>('All')
+  const [listings, setListings] = useState<Listing[]>([])
+  const [matches, setMatches] = useState<Match[]>([])
+  const [waitlist, setWaitlist] = useState<Demand[]>([])
+  const [notifs, setNotifs] = useState<Notification[]>([])
+  const [myListings, setMyListings] = useState<Listing[]>([])
+  const [myRequests, setMyRequests] = useState<Request[]>([])
+  const [showRequestModal, setShowRequestModal] = useState<{ listing: Listing } | null>(null)
+  const [requestQty, setRequestQty] = useState('')
+  const [requestMsg, setRequestMsg] = useState('')
+  const [modal, setModal] = useState<null | { type: 'match' | 'waitlist' | 'requestSent'; data: any }>(null)
 
-  // init market service + load data
   useEffect(() => {
     marketService.init()
     refresh()
@@ -72,66 +116,180 @@ export default function BuyerSellerDashboard() {
     setMatches(marketService.getMatchesByUser(user.id))
     setWaitlist(marketService.getWaitlistByUser(user.id))
     setNotifs(marketService.getNotifications(user.id))
+    setMyListings(marketService.getListingsBySeller(user.id))
+    setMyRequests(marketService.getRequestsByBuyer(user.id))
   }
 
   const unread = notifs.filter(n => !n.read).length
 
-  const goTo = (s: Section) => { setSection(s); setSidebar(false) }
+  const handleRequestToBuy = (listing: Listing) => {
+    setShowRequestModal({ listing })
+    setRequestQty('')
+    setRequestMsg('')
+  }
+
+  const submitRequest = () => {
+    const qty = Number(requestQty)
+    if (!showRequestModal) return
+    if (qty <= 0 || qty > showRequestModal.listing.remainingQty) {
+      alert(`Please enter a valid quantity (max ${showRequestModal.listing.remainingQty}kg)`)
+      return
+    }
+    
+    const newRequest = marketService.createRequest(
+      showRequestModal.listing.id,
+      user.id,
+      user.name,
+      user.email,
+      qty,
+      requestMsg || `I would like to buy ${qty}kg of your ${showRequestModal.listing.cropType}`
+    )
+    
+    setShowRequestModal(null)
+    setModal({ type: 'requestSent', data: newRequest })
+    refresh()
+  }
+
+  const handleAcceptRequest = (request: Request) => {
+    if (window.confirm(`Accept ${request.buyerName}'s request for ${request.requestedQty}kg?`)) {
+      marketService.acceptRequest(request.id)
+      refresh()
+    }
+  }
+
+  const handleRejectRequest = (request: Request) => {
+    if (window.confirm(`Reject ${request.buyerName}'s request?`)) {
+      marketService.rejectRequest(request.id)
+      refresh()
+    }
+  }
+
+  const handleLogout = () => { 
+    authService.clearSession()
+    navigate('/login') 
+  }
 
   const filteredListings = listings.filter(l =>
     (cropFilter === 'All' || l.cropType === cropFilter) &&
     l.status !== 'sold'
   )
 
-  // ── Direct Buy ──
-  const handleDirectBuy = (listing: Listing) => {
-    const qty = buyQty[listing.id] || listing.remainingQty
-    const match = marketService.buyDirectly(
-      listing.id,
-      { id: user.id, name: user.name, email: user.email },
-      qty,
-    )
-    if (match) {
-      setModal({ type: 'buy', data: match })
-      refresh()
+  const handleIntentChange = (newIntent: Intent) => {
+    setIntent(newIntent)
+    if (newIntent === 'buy') {
+      setSection('marketplace')
+    } else {
+      setSection('sell')
     }
   }
 
-  // ── Logout ──
-  const handleLogout = () => { authService.clearSession(); navigate('/login') }
+  const bottomNavItems = [
+    { id: 'marketplace' as Section, label: 'Home', icon: <RiHomeSmileLine size={22} /> },
+    { id: 'myStore' as Section, label: 'Store', icon: <FaStore size={20} /> },
+    { id: 'matches' as Section, label: 'Matches', icon: <RiCheckDoubleLine size={20} />, badge: matches.length },
+    { id: 'notifications' as Section, label: 'Alerts', icon: <RiBellLine size={20} />, badge: unread },
+  ]
 
-  const navItems: { id: Section; label: string; icon: React.ReactNode; badge?: number | string }[] = [
-    { id: 'marketplace',   label: 'Marketplace',   icon: <MdOutlineStorefront size={17} /> },
-    { id: 'buy',           label: 'Post Demand',    icon: <FaSeedling size={15} /> },
-    { id: 'sell',          label: 'List Produce',   icon: <BsShop size={15} /> },
-    { id: 'matches',       label: 'My Matches',     icon: <BsCheck2All size={16} />,  badge: matches.length  },
-    { id: 'waitlist',      label: 'Waitlist',       icon: <BsClockHistory size={15} />, badge: waitlist.length },
-    { id: 'notifications', label: 'Notifications',  icon: <BsBell size={15} />,        badge: unread || undefined },
+  const sidebarNavItems: { id: Section; label: string; icon: React.ReactNode; badge?: number | string }[] = [
+    { id: 'marketplace', label: 'Marketplace', icon: <RiStore3Line size={17} /> },
+    { id: 'myStore', label: 'My Store', icon: <FaStore size={15} />, badge: myListings.length },
+    { id: 'buy', label: 'Post Demand', icon: <FaSeedling size={15} /> },
+    { id: 'sell', label: 'List Produce', icon: <RiShoppingBagLine size={15} /> },
+    { id: 'matches', label: 'My Matches', icon: <RiCheckDoubleLine size={16} />, badge: matches.length },
+    { id: 'requests', label: 'Requests', icon: <RiChatCheckLine size={15} />, badge: myRequests.filter(r => r.status === 'pending').length },
+    { id: 'waitlist', label: 'Waitlist', icon: <RiTimeLine size={15} />, badge: waitlist.length },
+    { id: 'notifications', label: 'Notifications', icon: <RiBellLine size={15} />, badge: unread || undefined },
   ]
 
   return (
     <div className={styles.shell}>
+      <div className={`${styles.overlay} ${sidebarOpen ? styles.overlayVisible : ''}`} onClick={() => setSidebar(false)} />
 
-      {/* Mobile overlay */}
-      <div
-        className={`${styles.overlay} ${sidebarOpen ? styles.overlayVisible : ''}`}
-        onClick={() => setSidebar(false)}
-      />
-
-      {/* Modal */}
-      {modal && (
-        <MatchModal
-          modal={modal}
-          onClose={() => { setModal(null); goTo('matches') }}
-          onViewMatches={() => { setModal(null); goTo('matches') }}
-        />
+      {/* Request Modal */}
+      {showRequestModal && (
+        <div className={styles.modalOverlay} onClick={() => setShowRequestModal(null)}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+            <div className={styles.modalIcon} style={{ background: '#f2f9e4' }}>
+              <RiSendPlaneLine size={32} color="#2d6a35" />
+            </div>
+            <div className={styles.modalTitle}>Request to Buy</div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 16, padding: 12, background: '#f7f8f5', borderRadius: 12 }}>
+                {showRequestModal.listing.photoUrl ? (
+                  <img src={showRequestModal.listing.photoUrl} alt="" style={{ width: 60, height: 60, borderRadius: 8, objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: 60, height: 60, borderRadius: 8, background: '#e2e8df', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {CROP_ICON[showRequestModal.listing.cropType]}
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontWeight: 800, marginBottom: 4 }}>{showRequestModal.listing.cropType}</div>
+                  <div style={{ fontSize: 12, color: '#6b7f6e' }}>Seller: {showRequestModal.listing.sellerName}</div>
+                  <div style={{ fontSize: 12, color: '#6b7f6e' }}>Available: {showRequestModal.listing.remainingQty}kg</div>
+                </div>
+              </div>
+              
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Quantity Needed (kg) *</label>
+                <input 
+                  type="number" 
+                  className={styles.fieldInput} 
+                  value={requestQty} 
+                  onChange={e => setRequestQty(e.target.value)} 
+                  min={1} 
+                  max={showRequestModal.listing.remainingQty} 
+                  placeholder={`Max ${showRequestModal.listing.remainingQty}kg`} 
+                />
+              </div>
+              
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>Message to Seller (Optional)</label>
+                <textarea 
+                  className={styles.fieldTextarea} 
+                  rows={3} 
+                  value={requestMsg} 
+                  onChange={e => setRequestMsg(e.target.value)} 
+                  placeholder="e.g., When can I pick up? Do you deliver?" 
+                />
+              </div>
+            </div>
+            
+            <div className={styles.modalBtns}>
+              <button className={styles.modalBtnPrimary} onClick={submitRequest}>
+                <RiMailSendLine size={16} /> Send Request
+              </button>
+              <button className={styles.modalBtnOutline} onClick={() => setShowRequestModal(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
       )}
 
-      {/* ════════════════════════════════════════
-          SIDEBAR
-      ════════════════════════════════════════ */}
-      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
+      {/* Result Modal */}
+      {modal && (
+        <div className={styles.modalOverlay} onClick={() => { setModal(null); refresh() }}>
+          <div className={styles.modal} onClick={e => e.stopPropagation()}>
+            <div className={`${styles.modalIcon} ${modal.type === 'match' || modal.type === 'requestSent' ? styles.modalIconSuccess : styles.modalIconWait}`}>
+              {modal.type === 'requestSent' ? <RiMailSendLine size={32} /> : modal.type === 'match' ? <RiCheckboxCircleLine size={32} /> : <RiTimeLine size={32} />}
+            </div>
+            <div className={styles.modalTitle}>
+              {modal.type === 'requestSent' ? 'Request Sent!' : modal.type === 'match' ? 'Match Found!' : 'Added to Waitlist'}
+            </div>
+            <div className={styles.modalText}>
+              {modal.type === 'requestSent' 
+                ? `Your request has been sent to the seller. You'll be notified when they respond.`
+                : modal.type === 'match'
+                ? `Great news! We found matches for your demand.`
+                : `No sellers available right now. We'll notify you when someone lists matching produce.`}
+            </div>
+            <div className={styles.modalBtns}>
+              <button className={styles.modalBtnPrimary} onClick={() => { setModal(null); refresh() }}>Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
 
+      {/* Sidebar */}
+      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarTop}>
           <div className={styles.logoRow}>
             <div className={styles.logoMark}><RiLeafFill size={16} /></div>
@@ -143,120 +301,144 @@ export default function BuyerSellerDashboard() {
             <div className={styles.profileInfo}>
               <div className={styles.profileName}>{user.name}</div>
               <div className={styles.profileRole}>
-                {intent === 'buy' ? '🛒 Buyer' : '📦 Seller'}
+                {intent === 'buy' ? <><RiShoppingCartLine size={10} /> Buyer</> : <><RiStore3Line size={10} /> Seller</>}
               </div>
-            </div>
-          </div>
-
-          {/* Buy / Sell toggle */}
-          <div className={styles.intentBox}>
-            <div className={styles.intentLabel}>I am here to</div>
-            <div className={styles.intentToggle}>
-              <button
-                className={`${styles.intentBtn} ${intent === 'buy' ? styles.intentBtnActive : ''}`}
-                onClick={() => setIntent('buy')}
-              >
-                🛒 Buy
-              </button>
-              <button
-                className={`${styles.intentBtn} ${intent === 'sell' ? styles.intentBtnActive : ''}`}
-                onClick={() => setIntent('sell')}
-              >
-                📦 Sell
-              </button>
             </div>
           </div>
         </div>
 
         <nav className={styles.sidebarNav}>
-          <div className={styles.navLabel}>Navigation</div>
-          {navItems.map(item => (
+          <div className={styles.navLabel}>NAVIGATION</div>
+          {sidebarNavItems.map(item => (
             <button
               key={item.id}
               className={`${styles.navItem} ${section === item.id ? styles.navItemActive : ''}`}
-              onClick={() => goTo(item.id)}
+              onClick={() => { setSection(item.id); setSidebar(false) }}
             >
               <div className={styles.navIcon}>{item.icon}</div>
               <span className={styles.navText}>{item.label}</span>
-              {item.badge
-                ? (typeof item.badge === 'number' && item.badge > 0
-                    ? <span className={item.id === 'notifications' ? styles.navBadge : styles.navBadgeGreen}>{item.badge}</span>
-                    : null)
-                : null}
+              {item.badge && typeof item.badge === 'number' && item.badge > 0 && (
+                <span className={item.id === 'notifications' ? styles.navBadge : styles.navBadgeGreen}>{item.badge}</span>
+              )}
             </button>
           ))}
         </nav>
 
-        {/* Switch Role */}
         <div className={styles.switchBox}>
           <div className={styles.switchLbl}>Switch Role</div>
           <button className={styles.switchBtn} onClick={() => navigate('/farmer/dashboard')}>
-            <MdOutlineSwapHoriz size={14} /> Go to Farmer Dashboard
+            <RiExchangeLine size={14} /> Go to Farmer Dashboard
           </button>
         </div>
 
         <div className={styles.sidebarBottom}>
           <button className={styles.sidebarBtn}>
-            <MdOutlineSettings size={15} /> Settings
+            <RiSettings4Line size={15} /> Settings
           </button>
           <button className={`${styles.sidebarBtn} ${styles.sidebarBtnDanger}`} onClick={handleLogout}>
-            <MdOutlineLogout size={15} /> Log Out
+            <RiLogoutBoxRLine size={15} /> Log Out
           </button>
         </div>
       </aside>
 
-      {/* ════════════════════════════════════════
-          MAIN
-      ════════════════════════════════════════ */}
+      {/* Main Content */}
       <div className={styles.main}>
-
         <div className={styles.topbar}>
           <div className={styles.topbarLeft}>
             <button className={styles.menuBtn} onClick={() => setSidebar(p => !p)}>
               {sidebarOpen ? <MdClose size={17} /> : <MdOutlineMenu size={17} />}
             </button>
-            <div>
-              <div className={styles.topbarTitle}>
-                {{
-                  marketplace:   'Marketplace',
-                  buy:           'Post a Demand',
-                  sell:          'List Your Produce',
-                  matches:       'My Matches',
-                  waitlist:      'Waitlist',
-                  notifications: 'Notifications',
-                }[section]}
-              </div>
-              <div className={styles.topbarSub}>Akure Agricultural Hub · 4 crops available</div>
+            <div className={styles.intentToggleHeader}>
+              <button
+                className={`${styles.headerIntentBtn} ${intent === 'buy' ? styles.headerIntentActive : ''}`}
+                onClick={() => handleIntentChange('buy')}
+              >
+                <RiShoppingCartLine size={14} /> Buy
+              </button>
+              <button
+                className={`${styles.headerIntentBtn} ${intent === 'sell' ? styles.headerIntentActive : ''}`}
+                onClick={() => handleIntentChange('sell')}
+              >
+                <RiStore3Line size={14} /> Sell
+              </button>
             </div>
           </div>
           <div className={styles.topbarRight}>
-            {section === 'marketplace' && intent === 'buy' && (
-              <button className={styles.topbarBtnOutline} onClick={() => goTo('buy')}>
-                <BsPlus size={15} /> Post Demand
-              </button>
-            )}
-            {section === 'marketplace' && intent === 'sell' && (
-              <button className={styles.topbarBtnPrimary} onClick={() => goTo('sell')}>
-                <BsPlus size={15} /> List Produce
-              </button>
-            )}
-            <button className={styles.topbarIconBtn} onClick={() => goTo('notifications')}>
-              <BsBell size={15} />
+            <button className={styles.topbarIconBtn} onClick={() => setSection('notifications')}>
+              <RiBellLine size={15} />
               {unread > 0 && <div className={styles.notifBadge} />}
             </button>
             <div className={styles.topbarIconBtn}>
-              <BsPerson size={15} />
+              <RiUserLine size={15} />
             </div>
           </div>
         </div>
 
         <div className={styles.content}>
-          {section === 'marketplace'   && <SectionMarketplace listings={filteredListings} cropFilter={cropFilter} setCropFilter={setCropFilter} buyQty={buyQty} setBuyQty={setBuyQty} intent={intent} onBuy={handleDirectBuy} />}
-          {section === 'sell'          && <SectionPostListing user={user} onSuccess={() => { refresh(); goTo('marketplace') }} />}
-          {section === 'buy'           && <SectionPostDemand  user={user} onResult={(r) => { refresh(); setModal({ type: r.matched ? 'match' : 'waitlist', data: r }) }} />}
-          {section === 'matches'       && <SectionMatches  matches={matches} userId={user.id} />}
-          {section === 'waitlist'      && <SectionWaitlist waitlist={waitlist} />}
-          {section === 'notifications' && <SectionNotifications notifs={notifs} userId={user.id} onMarkAll={() => { marketService.markAllRead(user.id); refresh() }} />}
+          {section === 'marketplace' && (
+            <SectionMarketplace 
+              listings={filteredListings} 
+              cropFilter={cropFilter} 
+              setCropFilter={setCropFilter} 
+              intent={intent} 
+              onRequestToBuy={handleRequestToBuy} 
+            />
+          )}
+          {section === 'myStore' && (
+            <SectionMyStore listings={myListings} onRefresh={refresh} />
+          )}
+          {section === 'sell' && (
+            <SectionPostListing user={user} onSuccess={() => { refresh(); setSection('marketplace') }} />
+          )}
+          {section === 'buy' && (
+            <SectionPostDemand 
+              user={user} 
+              onResult={(r) => { 
+                refresh() 
+                setModal({ type: r.matched ? 'match' : 'waitlist', data: r })
+              }} 
+            />
+          )}
+          {section === 'matches' && (
+            <SectionMatches matches={matches} userId={user.id} />
+          )}
+          {section === 'requests' && (
+            <SectionRequests 
+              requests={myRequests} 
+              onAccept={handleAcceptRequest} 
+              onReject={handleRejectRequest} 
+            />
+          )}
+          {section === 'waitlist' && (
+            <SectionWaitlist waitlist={waitlist} />
+          )}
+          {section === 'notifications' && (
+            <SectionNotifications 
+              notifs={notifs} 
+              onMarkAll={() => { marketService.markAllRead(user.id); refresh() }} 
+            />
+          )}
+        </div>
+
+        {/* Bottom Navigation */}
+        <div className={styles.bottomNav}>
+          <div className={styles.bottomNavItems}>
+            {bottomNavItems.map(item => (
+              <button
+                key={item.id}
+                className={`${styles.bottomNavItem} ${section === item.id ? styles.bottomNavItemActive : ''}`}
+                onClick={() => setSection(item.id)}
+              >
+                <div className={styles.bottomNavIcon}>
+                  {item.icon}
+                  {item.badge && item.badge > 0 && (
+                    <span className={styles.bottomNavBadge}>{item.badge > 99 ? '99+' : item.badge}</span>
+                  )}
+                </div>
+                <span className={styles.bottomNavLabel}>{item.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -264,24 +446,22 @@ export default function BuyerSellerDashboard() {
 }
 
 // ══════════════════════════════════════════════════════
-// MARKETPLACE
+// MARKETPLACE SECTION
 // ══════════════════════════════════════════════════════
-function SectionMarketplace({ listings, cropFilter, setCropFilter, buyQty, setBuyQty, intent, onBuy }: {
+function SectionMarketplace({ listings, cropFilter, setCropFilter, intent, onRequestToBuy }: {
   listings: Listing[]
   cropFilter: CropType | 'All'
   setCropFilter: (c: CropType | 'All') => void
-  buyQty: Record<string, number>
-  setBuyQty: (v: Record<string, number>) => void
   intent: Intent
-  onBuy: (l: Listing) => void
+  onRequestToBuy: (l: Listing) => void
 }) {
   return (
     <>
       <div className={styles.pageHeader}>
-        <div className={styles.pageTitle}>Available Produce in Akure</div>
-        <div className={styles.pageSubtitle}>{listings.length} listings found · Sorted by closest location</div>
+        <div className={styles.pageTitle}>Fresh Produce Marketplace</div>
+        <div className={styles.pageSubtitle}>{listings.length} listings available · Browse what farmers have harvested</div>
       </div>
-
+      
       <div className={styles.cropTabs}>
         {(['All', ...CROPS] as (CropType | 'All')[]).map(c => (
           <button
@@ -289,92 +469,26 @@ function SectionMarketplace({ listings, cropFilter, setCropFilter, buyQty, setBu
             className={`${styles.cropTab} ${cropFilter === c ? styles.cropTabActive : ''}`}
             onClick={() => setCropFilter(c)}
           >
-            {c !== 'All' && CROP_EMOJI[c as CropType]} {c}
+            {c !== 'All' && CROP_ICON[c as CropType]} {c}
           </button>
         ))}
       </div>
 
       {listings.length === 0 ? (
         <div className={styles.emptyState}>
-          <div className={styles.emptyIcon}>🌾</div>
-          <div className={styles.emptyTitle}>No listings yet</div>
-          <div className={styles.emptyText}>No produce available for this crop. Check back soon or post your demand to be notified when stock arrives.</div>
+          <div className={styles.emptyIcon}><RiSeedlingLine size={48} /></div>
+          <div className={styles.emptyTitle}>No produce listed yet</div>
+          <div className={styles.emptyText}>Check back later for fresh produce from local farmers.</div>
         </div>
       ) : (
-        <div className={styles.listingsGrid}>
+        <div className={styles.marketplaceGrid}>
           {listings.map(listing => (
-            <div key={listing.id} className={styles.listingCard}>
-              <div className={styles.listingCardTop}>
-                <div className={`${styles.listingCropBadge} ${styles[CROP_CSS[listing.cropType] as keyof typeof styles]}`}>
-                  {CROP_EMOJI[listing.cropType]} {listing.cropType}
-                </div>
-                <div className={`${styles.listingStatusBadge} ${
-                  listing.status === 'available' ? styles.statusAvailable :
-                  listing.status === 'partial'   ? styles.statusPartial   : styles.statusSold
-                }`}>
-                  {listing.status === 'partial' ? 'Partial' : listing.status}
-                </div>
-              </div>
-
-              <div className={styles.listingCardBody}>
-                <div className={styles.listingSellerRow}>
-                  <div className={styles.listingSellerAvatar}>
-                    {listing.sellerName.split(' ').map(n => n[0]).join('')}
-                  </div>
-                  <div>
-                    <div className={styles.listingSellerName}>{listing.sellerName}</div>
-                    <div className={styles.listingLocation}>📍 {listing.location}, Akure</div>
-                  </div>
-                </div>
-
-                <div className={styles.listingStats}>
-                  <div className={styles.listingStat}>
-                    <div className={styles.listingStatVal}>{listing.remainingQty}kg</div>
-                    <div className={styles.listingStatLabel}>Available</div>
-                  </div>
-                  <div className={styles.listingStat}>
-                    <div className={styles.listingStatVal}>₦{listing.pricePerKg}</div>
-                    <div className={styles.listingStatLabel}>Per kg</div>
-                  </div>
-                </div>
-
-                <div className={styles.listingDesc}>{listing.description}</div>
-
-                {/* Qty input for direct buy */}
-                {intent === 'buy' && listing.status !== 'sold' && (
-                  <div style={{ marginBottom: 10 }}>
-                    <input
-                      type="number"
-                      className={styles.fieldInput}
-                      style={{ padding: '7px 12px', fontSize: 13 }}
-                      placeholder={`Qty (max ${listing.remainingQty}kg)`}
-                      min={1} max={listing.remainingQty}
-                      value={buyQty[listing.id] || ''}
-                      onChange={e => setBuyQty({ ...buyQty, [listing.id]: Number(e.target.value) })}
-                    />
-                  </div>
-                )}
-
-                <div className={styles.listingCardActions}>
-                  {intent === 'buy' ? (
-                    <button
-                      className={styles.btnBuyNow}
-                      disabled={listing.status === 'sold'}
-                      onClick={() => onBuy(listing)}
-                    >
-                      Buy Now — ₦{((buyQty[listing.id] || listing.remainingQty) * listing.pricePerKg).toLocaleString()}
-                    </button>
-                  ) : (
-                    <button className={styles.btnBuyNow} disabled>
-                      Your Listing
-                    </button>
-                  )}
-                  <button className={styles.btnDetails}>
-                    <BsGeoAlt size={13} />
-                  </button>
-                </div>
-              </div>
-            </div>
+            <ListingCard 
+              key={listing.id} 
+              listing={listing} 
+              intent={intent} 
+              onRequestToBuy={onRequestToBuy} 
+            />
           ))}
         </div>
       )}
@@ -383,24 +497,235 @@ function SectionMarketplace({ listings, cropFilter, setCropFilter, buyQty, setBu
 }
 
 // ══════════════════════════════════════════════════════
-// POST LISTING (Seller)
+// LISTING CARD
+// ══════════════════════════════════════════════════════
+function ListingCard({ listing, intent, onRequestToBuy }: { 
+  listing: Listing
+  intent: Intent
+  onRequestToBuy: (l: Listing) => void
+}) {
+  return (
+    <div className={styles.marketplaceCard}>
+      <div className={styles.cardPhoto}>
+        {listing.photoUrl ? (
+          <img 
+            src={listing.photoUrl} 
+            alt={listing.cropType} 
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = getImageFallback(listing.cropType)
+            }}
+          />
+        ) : (
+          <div className={styles.photoPlaceholder}>
+            <span className={styles.photoEmoji}>{CROP_ICON[listing.cropType]}</span>
+            <span className={styles.photoText}>No photo</span>
+          </div>
+        )}
+        <div className={`${styles.cardBadge} ${styles[CROP_CSS[listing.cropType]]}`}>
+          {CROP_ICON[listing.cropType]} {listing.cropType}
+        </div>
+        {listing.status !== 'available' && (
+          <div className={styles.statusOverlay}>
+            <span>{listing.status === 'partial' ? 'Partially Sold' : 'Sold Out'}</span>
+          </div>
+        )}
+      </div>
+      
+      <div className={styles.cardInfo}>
+        <div className={styles.sellerRow}>
+          <div className={styles.sellerAvatar}>
+            <GiFarmer size={16} />
+          </div>
+          <div>
+            <div className={styles.sellerName}>{listing.sellerName}</div>
+            <div className={styles.sellerLocation}>
+              <RiMapPinLine size={10} /> {listing.location} · {listing.distance || 'nearby'}
+            </div>
+          </div>
+        </div>
+        
+        <div className={styles.produceStats}>
+          <div className={styles.statItem}>
+            <span className={styles.statValue}>{listing.remainingQty}kg</span>
+            <span className={styles.statLabel}>Available</span>
+          </div>
+          <div className={styles.statDivider}>|</div>
+          <div className={styles.statItem}>
+            <span className={styles.statValue}>Fresh</span>
+            <span className={styles.statLabel}>Quality</span>
+          </div>
+        </div>
+        
+        {listing.description && (
+          <p className={styles.produceDesc}>
+            {listing.description.length > 80 
+              ? `${listing.description.substring(0, 80)}...` 
+              : listing.description}
+          </p>
+        )}
+        
+        {intent === 'buy' && listing.status !== 'sold' && (
+          <button className={styles.requestBtn} onClick={() => onRequestToBuy(listing)}>
+            Request to Buy
+          </button>
+        )}
+        
+        {intent === 'sell' && (
+          <button className={styles.yourListingBtn} disabled>
+            Your Listing
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════
+// MY STORE SECTION
+// ══════════════════════════════════════════════════════
+function SectionMyStore({ listings, onRefresh }: { 
+  listings: Listing[]
+  onRefresh: () => void 
+}) {
+  const [selectedListing, setSelectedListing] = useState<Listing | null>(null)
+  const incomingRequests = listings.flatMap(l => l.requests || []).filter(r => r.status === 'pending')
+  
+  if (selectedListing) {
+    return (
+      <>
+        <button className={styles.backBtn} onClick={() => setSelectedListing(null)}>
+          <RiArrowLeftLine size={16} /> Back to My Listings
+        </button>
+        <SectionRequests 
+          requests={selectedListing.requests || []} 
+          onAccept={(r) => { 
+            marketService.acceptRequest(r.id)
+            onRefresh()
+            setSelectedListing(null)
+          }} 
+          onReject={(r) => { 
+            marketService.rejectRequest(r.id)
+            onRefresh()
+          }} 
+        />
+      </>
+    )
+  }
+  
+  if (listings.length === 0) {
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyIcon}><RiStore3Line size={48} /></div>
+        <div className={styles.emptyTitle}>No listings yet</div>
+        <div className={styles.emptyText}>Start selling by listing your produce.</div>
+      </div>
+    )
+  }
+  
+  return (
+    <>
+      <div className={styles.pageHeader}>
+        <div className={styles.pageTitle}>My Store</div>
+        <div className={styles.pageSubtitle}>{listings.length} active listings · {incomingRequests.length} pending requests</div>
+      </div>
+      <div className={styles.marketplaceGrid}>
+        {listings.map(listing => (
+          <div key={listing.id} className={styles.marketplaceCard} style={{ cursor: 'pointer' }} onClick={() => setSelectedListing(listing)}>
+            <div className={styles.cardPhoto}>
+              {listing.photoUrl ? (
+                <img src={listing.photoUrl} alt={listing.cropType} />
+              ) : (
+                <div className={styles.photoPlaceholder}>
+                  <span className={styles.photoEmoji}>{CROP_ICON[listing.cropType]}</span>
+                </div>
+              )}
+              <div className={`${styles.cardBadge} ${styles[CROP_CSS[listing.cropType]]}`}>
+                {CROP_ICON[listing.cropType]} {listing.cropType}
+              </div>
+            </div>
+            <div className={styles.cardInfo}>
+              <div className={styles.produceStats}>
+                <div className={styles.statItem}>
+                  <span className={styles.statValue}>{listing.remainingQty}/{listing.quantity}kg</span>
+                  <span className={styles.statLabel}>Remaining</span>
+                </div>
+                <div className={styles.statDivider}>|</div>
+                <div className={styles.statItem}>
+                  <span className={styles.statValue}>{listing.requests?.filter(r => r.status === 'pending').length || 0}</span>
+                  <span className={styles.statLabel}>Pending</span>
+                </div>
+              </div>
+              <div className={styles.requestBtn} style={{ background: '#f2f4ef', color: '#2d6a35' }}>
+                View Requests →
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// ══════════════════════════════════════════════════════
+// POST LISTING SECTION with Camera/File Upload
 // ══════════════════════════════════════════════════════
 function SectionPostListing({ user, onSuccess }: { user: any; onSuccess: () => void }) {
   const [form, setForm] = useState({
     cropType: 'Maize' as CropType,
-    quantity: '', pricePerKg: '',
-    location: AKURE_AREAS[0], description: '',
+    quantity: '',
+    location: AKURE_AREAS[0],
+    description: '',
+    photoUrl: ''
   })
   const [loading, setLoading] = useState(false)
-  const [errors,  setErrors]  = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [imagePreview, setImagePreview] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const setF = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image is too large. Please choose an image under 5MB.')
+        return
+      }
+      
+      const reader = new FileReader()
+      reader.onloadend = () => {
+        const base64String = reader.result as string
+        setImagePreview(base64String)
+        setF('photoUrl', base64String)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const takePhoto = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = 'image/*'
+    input.capture = 'environment'
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (file) {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64String = reader.result as string
+          setImagePreview(base64String)
+          setF('photoUrl', base64String)
+        }
+        reader.readAsDataURL(file)
+      }
+    }
+    input.click()
+  }
+
   const validate = () => {
     const e: Record<string, string> = {}
-    if (!form.quantity   || Number(form.quantity)   <= 0) e.quantity   = 'Enter a valid quantity'
-    if (!form.pricePerKg || Number(form.pricePerKg) <= 0) e.pricePerKg = 'Enter a valid price'
-    if (!form.description.trim())                         e.description = 'Add a short description'
+    if (!form.quantity || Number(form.quantity) <= 0) e.quantity = 'Enter a valid quantity'
+    if (!form.description.trim()) e.description = 'Add a short description'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -411,14 +736,14 @@ function SectionPostListing({ user, onSuccess }: { user: any; onSuccess: () => v
     setLoading(true)
     await new Promise(r => setTimeout(r, 700))
     marketService.postListing({
-      sellerId:    user.id,
-      sellerName:  user.name,
+      sellerId: user.id,
+      sellerName: user.name,
       sellerEmail: user.email,
-      cropType:    form.cropType,
-      quantity:    Number(form.quantity),
-      pricePerKg:  Number(form.pricePerKg),
-      location:    form.location,
+      cropType: form.cropType,
+      quantity: Number(form.quantity),
+      location: form.location,
       description: form.description,
+      photoUrl: form.photoUrl || undefined
     })
     setLoading(false)
     onSuccess()
@@ -444,23 +769,68 @@ function SectionPostListing({ user, onSuccess }: { user: any; onSuccess: () => v
               </select>
             </div>
           </div>
-          <div className={styles.fieldRow}>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Available Quantity (kg)</label>
-              <input className={styles.fieldInput} type="number" placeholder="e.g. 500" min={1} value={form.quantity} onChange={e => setF('quantity', e.target.value)} />
-              {errors.quantity && <span className={styles.fieldErrMsg}>{errors.quantity}</span>}
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Price per kg (₦)</label>
-              <input className={styles.fieldInput} type="number" placeholder="e.g. 180" min={1} value={form.pricePerKg} onChange={e => setF('pricePerKg', e.target.value)} />
-              {errors.pricePerKg && <span className={styles.fieldErrMsg}>{errors.pricePerKg}</span>}
+          
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Available Quantity (kg)</label>
+            <input className={styles.fieldInput} type="number" placeholder="e.g. 500" min={1} value={form.quantity} onChange={e => setF('quantity', e.target.value)} />
+            {errors.quantity && <span className={styles.fieldErrMsg}>{errors.quantity}</span>}
+          </div>
+          
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Product Photo</label>
+            <div className={styles.photoUploadArea}>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', marginBottom: 12 }}>
+                <button 
+                  type="button" 
+                  className={styles.photoUploadBtn}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <RiImageAddLine size={20} /> Choose from Gallery
+                </button>
+                <button 
+                  type="button" 
+                  className={styles.photoUploadBtn}
+                  onClick={takePhoto}
+                >
+                  <MdCameraAlt size={18} /> Take Photo
+                </button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleImageSelect}
+              />
+              <div style={{ fontSize: 12, color: '#9ead9f', textAlign: 'center' }}>
+                Upload a clear photo of your produce (max 5MB)
+              </div>
+              {imagePreview && (
+                <div className={styles.imagePreviewContainer}>
+                  <img src={imagePreview} className={styles.photoPreview} alt="Preview" />
+                  <button 
+                    type="button" 
+                    className={styles.removePhotoBtn}
+                    onClick={() => { setImagePreview(''); setF('photoUrl', '') }}
+                  >
+                    ✕ Remove
+                  </button>
+                </div>
+              )}
             </div>
           </div>
+          
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Description</label>
-            <textarea className={styles.fieldTextarea} placeholder="Describe your produce — quality, harvest date, packaging..." value={form.description} onChange={e => setF('description', e.target.value)} />
+            <textarea 
+              className={styles.fieldTextarea} 
+              placeholder="Describe your produce — quality, harvest date, packaging..." 
+              value={form.description} 
+              onChange={e => setF('description', e.target.value)} 
+            />
             {errors.description && <span className={styles.fieldErrMsg}>{errors.description}</span>}
           </div>
+          
           <button className={styles.formSubmitBtn} type="submit" disabled={loading}>
             {loading ? <><div className={styles.spinner} /> Posting...</> : <>Post Listing <BsArrowRight size={14} /></>}
           </button>
@@ -471,25 +841,25 @@ function SectionPostListing({ user, onSuccess }: { user: any; onSuccess: () => v
 }
 
 // ══════════════════════════════════════════════════════
-// POST DEMAND (Buyer)
+// POST DEMAND SECTION
 // ══════════════════════════════════════════════════════
 function SectionPostDemand({ user, onResult }: {
   user: any
-  onResult: (r: { demand: Demand; matches: Match[]; matched: boolean }) => void
+  onResult: (r: any) => void
 }) {
   const [form, setForm] = useState({
     cropType: 'Maize' as CropType,
-    quantity: '', maxPrice: '', location: AKURE_AREAS[0],
+    quantity: '',
+    location: AKURE_AREAS[0]
   })
   const [loading, setLoading] = useState(false)
-  const [errors,  setErrors]  = useState<Record<string, string>>({})
+  const [errors, setErrors] = useState<Record<string, string>>({})
 
   const setF = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
 
   const validate = () => {
     const e: Record<string, string> = {}
     if (!form.quantity || Number(form.quantity) <= 0) e.quantity = 'Enter a valid quantity'
-    if (!form.maxPrice || Number(form.maxPrice) <= 0) e.maxPrice = 'Enter your max price per kg'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -498,15 +868,14 @@ function SectionPostDemand({ user, onResult }: {
     e.preventDefault()
     if (!validate()) return
     setLoading(true)
-    await new Promise(r => setTimeout(r, 900)) // simulate processing
+    await new Promise(r => setTimeout(r, 900))
     const result = marketService.postDemand({
-      buyerId:   user.id,
+      buyerId: user.id,
       buyerName: user.name,
       buyerEmail: user.email,
-      cropType:  form.cropType,
-      quantity:  Number(form.quantity),
-      maxPrice:  Number(form.maxPrice),
-      location:  form.location,
+      cropType: form.cropType,
+      quantity: Number(form.quantity),
+      location: form.location
     })
     setLoading(false)
     onResult(result)
@@ -515,7 +884,7 @@ function SectionPostDemand({ user, onResult }: {
   return (
     <div className={styles.formCard}>
       <div className={styles.formTitle}>Post a Demand</div>
-      <div className={styles.formSubtitle}>Tell us what you need. Our system will find the closest seller in Akure and match you automatically.</div>
+      <div className={styles.formSubtitle}>Tell us what you need. Our system will find the closest seller in Akure.</div>
       <form onSubmit={handleSubmit} noValidate>
         <div className={styles.formFields}>
           <div className={styles.fieldRow}>
@@ -532,21 +901,18 @@ function SectionPostDemand({ user, onResult }: {
               </select>
             </div>
           </div>
-          <div className={styles.fieldRow}>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Quantity Needed (kg)</label>
-              <input className={styles.fieldInput} type="number" placeholder="e.g. 200" min={1} value={form.quantity} onChange={e => setF('quantity', e.target.value)} />
-              {errors.quantity && <span className={styles.fieldErrMsg}>{errors.quantity}</span>}
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Max Price per kg (₦)</label>
-              <input className={styles.fieldInput} type="number" placeholder="e.g. 200" min={1} value={form.maxPrice} onChange={e => setF('maxPrice', e.target.value)} />
-              {errors.maxPrice && <span className={styles.fieldErrMsg}>{errors.maxPrice}</span>}
-            </div>
+          
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Quantity Needed (kg)</label>
+            <input className={styles.fieldInput} type="number" placeholder="e.g. 200" min={1} value={form.quantity} onChange={e => setF('quantity', e.target.value)} />
+            {errors.quantity && <span className={styles.fieldErrMsg}>{errors.quantity}</span>}
           </div>
+          
           <div style={{ background:'#f2f9e4', border:'1px solid rgba(168,216,50,0.3)', borderRadius:10, padding:'12px 14px', fontSize:13, color:'#2d6a35', fontWeight:600 }}>
-            🤖 Our system will instantly check available sellers in Akure and match you by closest location first. If no seller is found, you'll be added to the waitlist and notified when one is available.
+            <RiSeedlingLine size={16} style={{ display: 'inline', marginRight: 8 }} />
+            Our system will check available sellers in Akure and match you by closest location first.
           </div>
+          
           <button className={styles.formSubmitBtn} type="submit" disabled={loading}>
             {loading ? <><div className={styles.spinner} /> Finding matches...</> : <>Find a Match <BsArrowRight size={14} /></>}
           </button>
@@ -557,29 +923,32 @@ function SectionPostDemand({ user, onResult }: {
 }
 
 // ══════════════════════════════════════════════════════
-// MY MATCHES
+// MATCHES SECTION
 // ══════════════════════════════════════════════════════
 function SectionMatches({ matches, userId }: { matches: Match[]; userId: string }) {
-  if (matches.length === 0) return (
-    <div className={styles.emptyState}>
-      <div className={styles.emptyIcon}>🤝</div>
-      <div className={styles.emptyTitle}>No matches yet</div>
-      <div className={styles.emptyText}>Post a demand or list your produce. Our system will automatically match you with the closest buyer or seller in Akure.</div>
-    </div>
-  )
+  if (matches.length === 0) {
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyIcon}><RiCheckDoubleLine size={48} /></div>
+        <div className={styles.emptyTitle}>No matches yet</div>
+        <div className={styles.emptyText}>Post a demand or list your produce to get matched.</div>
+      </div>
+    )
+  }
+  
   return (
     <div className={styles.matchesList}>
       {matches.map(m => (
         <div key={m.id} className={styles.matchRow}>
           <div className={styles.matchRowLeft}>
             <div className={styles.matchCropRow}>
-              <span style={{ fontSize: 20 }}>{CROP_EMOJI[m.cropType]}</span>
+              <span style={{ fontSize: 20 }}>{CROP_ICON[m.cropType]}</span>
               <span className={styles.matchCropName}>{m.cropType}</span>
             </div>
             <div className={styles.matchParties}>
               {m.sellerId === userId
-                ? <>Sold to <strong>{m.buyerName}</strong> · 📍 {m.buyerLoc}</>
-                : <>Bought from <strong>{m.sellerName}</strong> · 📍 {m.sellerLoc}</>
+                ? <>Sold to <strong>{m.buyerName}</strong> · <RiMapPinLine size={10} /> {m.buyerLoc}</>
+                : <>Bought from <strong>{m.sellerName}</strong> · <RiMapPinLine size={10} /> {m.sellerLoc}</>
               }
             </div>
           </div>
@@ -589,22 +958,14 @@ function SectionMatches({ matches, userId }: { matches: Match[]; userId: string 
               <div className={styles.matchStatLabel}>Qty</div>
             </div>
             <div className={styles.matchStat}>
-              <div className={styles.matchStatVal}>₦{m.pricePerKg}/kg</div>
-              <div className={styles.matchStatLabel}>Price</div>
-            </div>
-            <div className={styles.matchStat}>
-              <div className={styles.matchStatVal}>₦{m.totalPrice.toLocaleString()}</div>
-              <div className={styles.matchStatLabel}>Total</div>
-            </div>
-            <div className={styles.matchStat}>
               <div className={styles.matchStatVal}>{m.distance}km</div>
               <div className={styles.matchStatLabel}>Distance</div>
             </div>
           </div>
           <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:6 }}>
             <span className={`${styles.matchStatusChip} ${
-              m.status === 'confirmed'         ? styles.chipConfirmed :
-              m.status === 'pending_delivery'  ? styles.chipDelivery  : styles.chipDelivered
+              m.status === 'confirmed' ? styles.chipConfirmed :
+              m.status === 'pending_delivery' ? styles.chipDelivery : styles.chipDelivered
             }`}>{m.status.replace('_', ' ')}</span>
             <span className={styles.matchDate}>{timeAgo(m.matchedAt)}</span>
           </div>
@@ -615,24 +976,84 @@ function SectionMatches({ matches, userId }: { matches: Match[]; userId: string 
 }
 
 // ══════════════════════════════════════════════════════
-// WAITLIST
+// REQUESTS SECTION
 // ══════════════════════════════════════════════════════
-function SectionWaitlist({ waitlist }: { waitlist: Demand[] }) {
-  if (waitlist.length === 0) return (
-    <div className={styles.emptyState}>
-      <div className={styles.emptyIcon}>✅</div>
-      <div className={styles.emptyTitle}>Waitlist is clear</div>
-      <div className={styles.emptyText}>All your demands have been matched. Great news!</div>
+function SectionRequests({ requests, onAccept, onReject }: { 
+  requests: Request[]
+  onAccept: (r: Request) => void
+  onReject: (r: Request) => void
+}) {
+  if (requests.length === 0) {
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyIcon}><RiChatCheckLine size={48} /></div>
+        <div className={styles.emptyTitle}>No requests yet</div>
+        <div className={styles.emptyText}>When buyers request your produce, they'll appear here.</div>
+      </div>
+    )
+  }
+  
+  return (
+    <div className={styles.requestsList}>
+      {requests.map(req => (
+        <div key={req.id} className={styles.requestCard}>
+          <div className={styles.requestHeader}>
+            <div className={styles.requestBuyer}>{req.buyerName}</div>
+            <div className={`${styles.requestStatus} ${req.status === 'pending' ? styles.statusPending : req.status === 'accepted' ? styles.statusAccepted : styles.statusRejected}`}>
+              {req.status}
+            </div>
+          </div>
+          <div className={styles.requestDetails}>
+            <div><RiShoppingBagLine size={12} /> {req.requestedQty}kg</div>
+            <div><RiTimeLine size={12} /> {timeAgo(req.createdAt)}</div>
+          </div>
+          {req.message && (
+            <div className={styles.requestMessage}>
+              <RiChatCheckLine size={12} /> "{req.message}"
+            </div>
+          )}
+          {req.status === 'pending' && (
+            <div className={styles.requestActions}>
+              <button className={styles.acceptBtn} onClick={() => onAccept(req)}>
+                <MdCheckCircle size={16} /> Accept
+              </button>
+              <button className={styles.rejectBtn} onClick={() => onReject(req)}>
+                <MdCancel size={16} /> Decline
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   )
+}
+
+// ══════════════════════════════════════════════════════
+// WAITLIST SECTION
+// ══════════════════════════════════════════════════════
+function SectionWaitlist({ waitlist }: { waitlist: Demand[] }) {
+  if (waitlist.length === 0) {
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyIcon}><RiCheckboxCircleLine size={48} /></div>
+        <div className={styles.emptyTitle}>Waitlist is clear</div>
+        <div className={styles.emptyText}>All your demands have been matched. Great news!</div>
+      </div>
+    )
+  }
+  
   return (
     <div className={styles.waitlistList}>
       {waitlist.map(d => (
         <div key={d.id} className={styles.waitlistCard}>
           <div className={styles.waitlistIcon}><GiTruck size={18} /></div>
           <div className={styles.waitlistInfo}>
-            <div className={styles.waitlistCrop}>{CROP_EMOJI[d.cropType]} {d.cropType} — {d.quantity}kg</div>
-            <div className={styles.waitlistMeta}>📍 {d.location} · Max ₦{d.maxPrice}/kg · Posted {timeAgo(d.createdAt)}</div>
+            <div className={styles.waitlistCrop}>
+              {CROP_ICON[d.cropType]} {d.cropType} — {d.quantity}kg
+            </div>
+            <div className={styles.waitlistMeta}>
+              <RiMapPinLine size={10} /> {d.location} · Posted {timeAgo(d.createdAt)}
+            </div>
           </div>
           <span className={styles.waitlistBadge}>Waiting</span>
         </div>
@@ -642,20 +1063,22 @@ function SectionWaitlist({ waitlist }: { waitlist: Demand[] }) {
 }
 
 // ══════════════════════════════════════════════════════
-// NOTIFICATIONS
+// NOTIFICATIONS SECTION
 // ══════════════════════════════════════════════════════
-function SectionNotifications({ notifs, userId, onMarkAll }: {
+function SectionNotifications({ notifs, onMarkAll }: {
   notifs: Notification[]
-  userId: string
   onMarkAll: () => void
 }) {
-  if (notifs.length === 0) return (
-    <div className={styles.emptyState}>
-      <div className={styles.emptyIcon}>🔔</div>
-      <div className={styles.emptyTitle}>No notifications yet</div>
-      <div className={styles.emptyText}>When you get matched, buy, or sell — your notifications will appear here.</div>
-    </div>
-  )
+  if (notifs.length === 0) {
+    return (
+      <div className={styles.emptyState}>
+        <div className={styles.emptyIcon}><RiNotificationLine size={48} /></div>
+        <div className={styles.emptyTitle}>No notifications yet</div>
+        <div className={styles.emptyText}>When you get matched, your notifications will appear here.</div>
+      </div>
+    )
+  }
+  
   return (
     <>
       <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
@@ -665,10 +1088,13 @@ function SectionNotifications({ notifs, userId, onMarkAll }: {
       </div>
       <div className={styles.notifList}>
         {notifs.map(n => (
-          <div key={n.id} className={`${styles.notifCard} ${!n.read ? styles.notifUnread : ''}`}
-            onClick={() => { marketService.markNotifRead(n.id) }}>
+          <div 
+            key={n.id} 
+            className={`${styles.notifCard} ${!n.read ? styles.notifUnread : ''}`}
+            onClick={() => { marketService.markNotifRead(n.id) }}
+          >
             <div className={`${styles.notifIconWrap} ${n.type === 'match' ? styles.notiflime : styles.notifamber}`}>
-              {n.type === 'match' ? <BsCheck2All size={16} /> : <GiTruck size={16} />}
+              {n.type === 'match' ? <RiCheckDoubleLine size={16} /> : <GiTruck size={16} />}
             </div>
             <div className={styles.notifbody}>
               <div className={styles.notifTitle}>{n.title}</div>
@@ -682,70 +1108,5 @@ function SectionNotifications({ notifs, userId, onMarkAll }: {
         ))}
       </div>
     </>
-  )
-}
-
-// ══════════════════════════════════════════════════════
-// MATCH RESULT MODAL
-// ══════════════════════════════════════════════════════
-function MatchModal({ modal, onClose, onViewMatches }: {
-  modal: { type: string; data: any }
-  onClose: () => void
-  onViewMatches: () => void
-}) {
-  const isMatch = modal.type === 'match' || modal.type === 'buy'
-  const matches: Match[] = modal.type === 'match'
-    ? (modal.data.matches ?? [])
-    : (modal.data ? [modal.data] : [])
-
-  return (
-    <div className={styles.modalOverlay} onClick={onClose}>
-      <div className={styles.modal} onClick={e => e.stopPropagation()}>
-        <div className={`${styles.modalIcon} ${isMatch ? styles.modalIconSuccess : styles.modalIconWait}`}>
-          {isMatch ? '🎉' : '⏳'}
-        </div>
-
-        <div className={styles.modalTitle}>
-          {isMatch ? 'Match Found!' : 'Added to Waitlist'}
-        </div>
-
-        <div className={styles.modalText}>
-          {isMatch
-            ? `Great news! We found ${matches.length} seller${matches.length > 1 ? 's' : ''} near you in Akure.`
-            : 'No seller available right now. We\'ll notify you via SMS and email the moment one lists produce matching your demand.'}
-        </div>
-
-        {isMatch && matches.length > 0 && (
-          <div className={styles.matchCards}>
-            {matches.map(m => (
-              <div key={m.id} className={styles.matchCard}>
-                <div className={styles.matchCardRow}>
-                  <span className={styles.matchCardLabel}>
-                    {CROP_EMOJI[m.cropType]} {m.cropType} · {m.quantity}kg
-                  </span>
-                  <span className={styles.matchCardVal}>📍 {m.sellerLoc} ({m.distance}km)</span>
-                </div>
-                <div className={styles.matchCardRow}>
-                  <span className={styles.matchCardVal}>Seller: {m.sellerName}</span>
-                  <span className={styles.matchCardTotal}>₦{m.totalPrice.toLocaleString()}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        <div className={styles.notifNote}>
-          📧 Notification sent to both buyer and seller via email & SMS
-        </div>
-
-        <div className={styles.modalBtns}>
-          {isMatch
-            ? <button className={styles.modalBtnPrimary} onClick={onViewMatches}>View My Matches</button>
-            : <button className={styles.modalBtnPrimary} onClick={onClose}>View Waitlist</button>
-          }
-          <button className={styles.modalBtnOutline} onClick={onClose}>Continue</button>
-        </div>
-      </div>
-    </div>
   )
 }
