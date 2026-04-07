@@ -1,5 +1,3 @@
-
-
 .page {
   width: 100%;
   background: #ffffff;
@@ -26,41 +24,69 @@
 }
 .navScrolled { box-shadow: 0 2px 24px rgba(20,31,21,0.09); }
 
-.logo { display: flex; align-items: center; gap: 10px; }
+/* Logo — never shrinks or wraps */
+.logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .logoMark {
   width: 34px; height: 34px; border-radius: 9px;
   background: #a8d832;
   display: flex; align-items: center; justify-content: center;
   color: #141f15;
+  flex-shrink: 0;
 }
-.logoName { font-size: 16px; font-weight: 700; color: #141f15; letter-spacing: -0.025em; }
+.logoName {
+  font-size: 16px; font-weight: 700;
+  color: #141f15; letter-spacing: -0.025em;
+  white-space: nowrap;
+}
 .logoName span { color: #2d6a35; }
 
-.navActions { display: flex; align-items: center; gap: 8px; }
+/* Buttons — never shrinks or wraps */
+.navActions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
 .navSignUp {
   padding: 8px 18px; border-radius: 100px;
   border: 1.5px solid #c8d4c2; background: transparent;
   font-family: var(--font); font-size: 13px; font-weight: 600;
   color: #3a4f3d; cursor: pointer; letter-spacing: -0.01em;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 .navSignUp:hover { border-color: #2d6a35; color: #1e3d22; background: #f2f9e4; }
+
 .navLogin {
-  display: flex; 
-  align-items: center; 
-  gap: 7px;
-  padding: 8px 18px; 
-  border-radius: 100px; 
-  background: #a8d832; 
-  border: none;
+  display: flex; align-items: center; gap: 7px;
+  padding: 8px 18px; border-radius: 100px;
+  background: #a8d832; border: none;
   font-family: var(--font); font-size: 13px; font-weight: 700;
   color: #141f15; cursor: pointer; letter-spacing: -0.01em;
+  white-space: nowrap;
   transition: background 0.2s ease, transform 0.15s ease;
 }
 .navLogin:hover { background: #8bbf1a; transform: translateY(-1px); }
 
+/* Tablet */
+@media (max-width: 768px) {
+  .navbar { height: 62px; }
+  .logoName { font-size: 15px; }
+  .navSignUp,
+  .navLogin { padding: 7px 14px; font-size: 12px; }
+  .navActions { gap: 6px; }
+}
+
+/* Mobile */
+@media (max-width: 480px) {
+  .navbar { height: 56px; }
+  .logoMark { width: 30px; height: 30px; border-radius: 8px; }
+  .logoName { font-size: 14px; }
+  .logo { gap: 8px; }
+  .navSignUp,
+  .navLogin { padding: 7px 12px; font-size: 12px; }
+  .navActions { gap: 5px; }
+  .navLogin { gap: 4px; }
+}
+
 /* ══════════════════════════════════════
-   HERO — dark overlay, white text
+   HERO
 ══════════════════════════════════════ */
 .hero {
   position: relative;
@@ -133,21 +159,27 @@
 
 /* headline */
 .heroHeading {
-  font-size: clamp(44px, 7vw, 78px);
-  font-weight: 800; color: #ffffff;
-  line-height: 1.03; letter-spacing: -0.04em;
-  margin-bottom: 22px;
+  font-size: clamp(38px, 7vw, 78px);
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.02;
+  letter-spacing: clamp(-0.03em, -0.04em, -0.045em);
+  margin-bottom: 20px;
   animation: fadeUp 0.6s ease 0.2s both;
-  max-width: 680px;
+  max-width: 660px;
 }
 .heroHeading em { font-style: normal; color: #a8d832; }
 
+
 /* subtext */
 .heroSub {
-  font-size: 18px; font-weight: 400;
-  color: rgba(255,255,255,0.72);
-  line-height: 1.75; max-width: 500px;
+  font-size: clamp(15px, 1.8vw, 17px);
+  font-weight: 400;
+  color: rgba(255,255,255,0.70);
+  line-height: 1.72;
+  max-width: 420px;
   margin-bottom: 40px;
+  letter-spacing: 0.005em;
   animation: fadeUp 0.6s ease 0.3s both;
 }
 
@@ -246,70 +278,6 @@
   to   { opacity:1; transform:translateY(0); }
 }
 
-/* ══════════════════════════════════════
-   METRICS BAR
-══════════════════════════════════════ */
-.metrics { background: #141f15; padding: 0 var(--px); }
-.metricsRow {
-  max-width: 1200px; margin: 0 auto;
-  display: grid; grid-template-columns: repeat(3,1fr);
-  border-left: 1px solid rgba(255,255,255,0.05);
-}
-.metricCell {
-  padding: 36px 28px;
-  border-right: 1px solid rgba(255,255,255,0.05);
-  text-align: center;
-}
-.metricValue {
-  font-size: clamp(32px, 5vw, 48px); font-weight: 800;
-  color: #a8d832; letter-spacing: -0.04em; line-height: 1; margin-bottom: 6px;
-}
-.metricDesc {
-  font-size: 11px; font-weight: 600;
-  color: rgba(255,255,255,0.38);
-  letter-spacing: 0.07em; text-transform: uppercase; line-height: 1.5;
-}
-
-/* ══════════════════════════════════════
-   ABOUT — clean 2-col, no tabs/stat cards
-══════════════════════════════════════ */
-.about { background: #fff; padding: 112px var(--px); }
-.aboutInner { max-width: 1200px; margin: 0 auto; }
-
-.aboutLayout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 80px;
-}
-@media (min-width: 900px) {
-  .aboutLayout { grid-template-columns: 1fr 1fr; align-items: start; }
-}
-
-.aboutEyebrow {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 20px;
-}
-.aboutEyebrowDot { width: 7px; height: 7px; border-radius: 50%; background: #a8d832; }
-.aboutEyebrowText {
-  font-size: 11px; font-weight: 700; color: #9ead9f;
-  letter-spacing: 0.08em; text-transform: uppercase;
-}
-.aboutHeadline {
-  font-size: clamp(26px, 3.8vw, 40px); font-weight: 700;
-  color: #141f15; line-height: 1.22; letter-spacing: -0.03em;
-}
-
-.aboutRightText {
-  font-size: 16px; color: #4a5e4d; line-height: 1.85; margin-bottom: 24px;
-}
-.btnLearn {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 13px 24px; border-radius: 100px;
-  border: 1.5px solid #c8d4c2; background: transparent;
-  font-family: var(--font); font-size: 14px; font-weight: 600;
-  color: #3a4f3d; cursor: pointer; letter-spacing: -0.01em;
-  transition: all 0.2s ease;
-}
-.btnLearn:hover { border-color: #2d6a35; color: #1e3d22; background: #f2f9e4; }
 
 /* ══════════════════════════════════════
    HOW IT WORKS
@@ -488,4 +456,4 @@
   color: rgba(255,255,255,0.4); letter-spacing: -0.02em;
 }
 .footerBrand span { color: #a8d832; }
-.footerCopy { font-size: 12px; color: rgba(255,255,255,0.2); }
+.footerCopy { font-size: 12px; color: rgba(255,255,255,0.2); }  

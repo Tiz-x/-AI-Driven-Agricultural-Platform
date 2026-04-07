@@ -104,43 +104,90 @@
 }
 
 /* top bar */
+/* ── TOP BAR ─────────────────────────────────────────── */
 .rightTopBar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 20px 36px;
   gap: 10px;
   flex-shrink: 0;
 }
-.topBarText {
-  font-size: 13px; color: #6b7f6e; font-weight: 500;
+
+.topBarRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
+
+.topBarText {
+  font-size: 13px;
+  color: #6b7f6e;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
 .topBarBtn {
-  padding: 7px 18px; border-radius: 100px;
-  border: 1.5px solid #c8d4c2; background: transparent;
-  font-family: var(--font); font-size: 13px; font-weight: 600;
-  color: #2d6a35; cursor: pointer; letter-spacing: -0.01em;
+  padding: 7px 18px;
+  border-radius: 100px;
+  border: 1.5px solid #c8d4c2;
+  background: transparent;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  color: #2d6a35;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 .topBarBtn:hover { border-color: #2d6a35; background: #f2f9e4; }
 
-/* on mobile, show logo in top bar */
+/* Logo — always visible, always left */
 .mobileLogo {
-  display: flex; align-items: center; gap: 8px;
-  margin-right: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .mobileLogoMark {
-  width: 30px; height: 30px; border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
   background: #a8d832;
-  display: flex; align-items: center; justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #141f15;
+  flex-shrink: 0;
 }
 .mobileLogoText {
-  font-size: 15px; font-weight: 700;
-  color: #141f15; letter-spacing: -0.02em;
+  font-size: 15px;
+  font-weight: 700;
+  color: #141f15;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
 }
 .mobileLogoText span { color: #2d6a35; }
+
+/* On desktop, hide logo only if your left panel is visible */
 @media (min-width: 900px) { .mobileLogo { display: none; } }
+
+/* Tablet */
+@media (max-width: 768px) {
+  .rightTopBar { padding: 16px 24px; }
+}
+
+/* Mobile — hide the "Already have an account?" text, keep button */
+@media (max-width: 480px) {
+  .rightTopBar { padding: 12px 16px; }
+  .mobileLogo { display: flex; } /* always show on mobile */
+  .topBarText { display: none; }
+  .topBarBtn { font-size: 12px; padding: 7px 14px; }
+  .mobileLogoText { font-size: 14px; }
+  .mobileLogoMark { width: 28px; height: 28px; border-radius: 7px; }
+}
 
 /* form container */
 .formWrap {

@@ -1,9 +1,12 @@
-
+// src/services/authService.ts
 
 import type { RegisterPayload, LoginPayload, AuthResponse } from '../types/auth'
 
 const BASE_URL  = import.meta.env.VITE_API_URL ?? ''
 const MOCK_MODE = !BASE_URL  // true when no backend URL is set
+
+// Define UserRole type if not already in types
+type UserRole = 'farmer' | 'buyer' | 'seller'
 
 /* ── Mock responses (frontend dev only) ───────────────── */
 function mockRegister(payload: RegisterPayload): AuthResponse {
@@ -14,7 +17,7 @@ function mockRegister(payload: RegisterPayload): AuthResponse {
       id:    'mock-001',
       name:  payload.fullName,
       email: payload.email,
-      role,
+      role: role as UserRole,
     },
   }
 }
@@ -24,19 +27,24 @@ function mockLogin(payload: LoginPayload): AuthResponse {
   // farmer@test.com  → farmer dashboard
   // buyer@test.com   → buyer dashboard
   // seller@test.com  → seller dashboard
-  // admin@test.com   → admin dashboard
   const email = payload.email.toLowerCase()
-  const role =
-    email.includes('buyer')  ? 'buyer'  :
-    email.includes('seller') ? 'seller' :
-    email.includes('admin')  ? 'admin'  :
-    'farmer'
+  let role: UserRole = 'farmer'
+  
+  if (email.includes('buyer')) {
+    role = 'buyer'
+  } else if (email.includes('seller')) {
+    role = 'seller'
+  } else if (email.includes('admin')) {
+    // Admin maps to farmer for now (or you can create admin dashboard later)
+    role = 'farmer'
+  } else {
+    role = 'farmer'
+  }
 
   const nameMap: Record<string, string> = {
     farmer: 'Adewale Okafor',
     buyer:  'Chioma Eze',
     seller: 'Musa Ibrahim',
-    admin:  'Admin User',
   }
 
   return {
@@ -98,11 +106,17 @@ export const authService = {
     localStorage.setItem('agf_user', JSON.stringify(res.user))
   },
 
-  getToken:     () => localStorage.getItem('agf_token'),
-  getUser:      () => {
+  getToken: () => localStorage.getItem('agf_token'),
+  
+  getUser: () => {
     const raw = localStorage.getItem('agf_user')
     return raw ? JSON.parse(raw) : null
   },
+  
+  setUser: (user: any) => {
+    localStorage.setItem('agf_user', JSON.stringify(user))
+  },
+  
   clearSession: () => {
     localStorage.removeItem('agf_token')
     localStorage.removeItem('agf_user')
