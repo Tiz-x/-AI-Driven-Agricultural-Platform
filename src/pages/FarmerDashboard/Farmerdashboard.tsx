@@ -318,6 +318,7 @@ export default function FarmerChat() {
             className={styles.sidebarBottomBtn}
             onClick={() => {
               localStorage.removeItem("agf_user");
+              localStorage.removeItem("agf_token");
               navigate("/login");
             }}
           >

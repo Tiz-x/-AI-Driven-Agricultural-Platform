@@ -2,17 +2,22 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RiLeafFill } from 'react-icons/ri'
 import { BsArrowRight } from 'react-icons/bs'
-// import cassava from './cassave.jpeg'
+import { getContentImages } from '../../services/authService'
 import styles from './Onboarding.module.css'
 
 export default function Onboarding() {
   const navigate = useNavigate()
   const [scrolled, setScrolled] = useState(false)
+  const [images, setImages]     = useState<Record<string, string>>({})
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 12)
     window.addEventListener('scroll', fn, { passive: true })
     return () => window.removeEventListener('scroll', fn)
+  }, [])
+
+  useEffect(() => {
+    getContentImages().then(setImages)
   }, [])
 
   return (
@@ -40,11 +45,17 @@ export default function Onboarding() {
 
       {/* ── HERO ───────────────────────────────────── */}
       <section className={styles.hero}>
-        <div className={styles.heroBg} />
+        <div
+          className={styles.heroBg}
+          style={
+            images['hero_bg']
+              ? { backgroundImage: `url('${images['hero_bg']}')` }
+              : {}
+          }
+        />
         <div className={styles.heroOverlay} />
 
         <div className={styles.heroInner}>
-          {/* Left: text */}
           <div>
             <div className={styles.heroPill}>
               <div className={styles.pillDot} />
@@ -76,7 +87,6 @@ export default function Onboarding() {
             </div>
           </div>
 
-          {/* Right: floating mission card — desktop only */}
           <div className={styles.heroCard}>
             <div className={styles.heroCardHead}>
               <div className={styles.heroCardDot} />
@@ -111,9 +121,30 @@ export default function Onboarding() {
               top quality, zero waste, fully transparent.
             </p>
             <div className={styles.howPhotos}>
-              <div className={`${styles.howPhoto} ${styles.howPhotoA}`} />
-              <div className={`${styles.howPhoto} ${styles.howPhotoB}`} />
-              <div className={`${styles.howPhoto} ${styles.howPhotoC}`} />
+              <div
+                className={`${styles.howPhoto} ${styles.howPhotoA}`}
+                style={
+                  images['how_we_work_1']
+                    ? { backgroundImage: `url('${images['how_we_work_1']}')` }
+                    : {}
+                }
+              />
+              <div
+                className={`${styles.howPhoto} ${styles.howPhotoB}`}
+                style={
+                  images['how_we_work_2']
+                    ? { backgroundImage: `url('${images['how_we_work_2']}')` }
+                    : {}
+                }
+              />
+              <div
+                className={`${styles.howPhoto} ${styles.howPhotoC}`}
+                style={
+                  images['how_we_work_3']
+                    ? { backgroundImage: `url('${images['how_we_work_3']}')` }
+                    : {}
+                }
+              />
             </div>
           </div>
 
@@ -147,14 +178,20 @@ export default function Onboarding() {
           </h2>
           <div className={styles.rolesGrid}>
             {[
-              { photo: styles.rp1, name: 'Farmers', tagline: 'Grow & Manage Produce'    },
-              { photo: styles.rp2, name: 'Buyers',  tagline: 'Source Quality Produce'   },
-              { photo: styles.rp3, name: 'Sellers', tagline: 'List & Sell Availability' },
-            ].map(({ photo, name, tagline }) => (
+              { key: 'role_farmer', cssClass: styles.rp1, name: 'Farmers', tagline: 'Grow & Manage Produce'    },
+              { key: 'role_buyer',  cssClass: styles.rp2, name: 'Buyers',  tagline: 'Source Quality Produce'   },
+              { key: 'role_seller', cssClass: styles.rp3, name: 'Sellers', tagline: 'List & Sell Availability' },
+            ].map(({ key, cssClass, name, tagline }) => (
               <div key={name} className={styles.roleCard}>
-                {/* wrapper div ensures overflow:hidden + centered bg works */}
                 <div className={styles.rolePhotoWrap}>
-                  <div className={`${styles.rolePhoto} ${photo}`} />
+                  <div
+                    className={`${styles.rolePhoto} ${cssClass}`}
+                    style={
+                      images[key]
+                        ? { backgroundImage: `url('${images[key]}')` }
+                        : {}
+                    }
+                  />
                 </div>
                 <div className={styles.roleCardBody}>
                   <div className={styles.roleName}>{name}</div>

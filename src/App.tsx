@@ -4,19 +4,29 @@ import Register             from './pages/Register/Register'
 import Login                from './pages/Login/Login'
 import FarmerDashboard      from './pages/FarmerDashboard/Farmerdashboard'
 import BuyerSellerDashboard from './pages/BuyerSellerDashboard/BuyerSellerDashboard'
-import PageLoader           from './components/PageLoader/PageLoader'  
+import PageLoader           from './components/PageLoader/PageLoader'
+import FloatingAI           from './components/FloatingAI/FloatingAI'
+
+function BuyerSellerWithAI() {
+  return (
+    <>
+      <BuyerSellerDashboard />
+      <FloatingAI />
+    </>
+  )
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <PageLoader />  
+      <PageLoader />
       <Routes>
-        <Route path="/"         element={<Onboarding />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/login"    element={<Login />} />
-        <Route path="/farmer/*" element={<FarmerDashboard />} />
-        <Route path="/buyer/*"  element={<BuyerSellerDashboard />} />
-        <Route path="/seller/*" element={<BuyerSellerDashboard />} />
+        <Route path="/"         element={<Onboarding />}       />
+        <Route path="/register" element={<Register />}         />
+        <Route path="/login"    element={<Login />}            />
+        <Route path="/farmer/*" element={<FarmerDashboard />}  />
+        <Route path="/buyer/*"  element={<BuyerSellerWithAI />} />
+        <Route path="/seller/*" element={<BuyerSellerWithAI />} />
         <Route path="/admin/*"  element={<div style={{padding:40}}>Admin — coming next</div>} />
         <Route path="*"         element={<Navigate to="/" replace />} />
       </Routes>
