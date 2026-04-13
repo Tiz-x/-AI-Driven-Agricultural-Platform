@@ -91,7 +91,7 @@
   padding-top: 68px;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
+  justify-content: flex-start;
   overflow: hidden;
 }
 
@@ -122,21 +122,20 @@
   position: relative; z-index: 10;
   max-width: 1200px; width: 100%;
   margin: 0 auto;
-  padding: 0 var(--px) 72px;
+  padding: 48px var(--px) 72px;
   display: grid;
   grid-template-columns: 1fr;
   gap: 40px;
-  align-items: end;
+  align-items: start;
 }
 
-/* Restore comfortable padding on tablet and up */
 @media (min-width: 600px) {
-  .heroInner { padding-top: 20px; padding-bottom: 88px; }
+  .heroInner { padding-top: 56px; padding-bottom: 88px; }
 }
 @media (min-width: 960px) {
-   .heroInner {
+  .heroInner {
     grid-template-columns: 1fr auto;
-    padding-top: 24px;
+    padding-top: 64px;
     padding-bottom: 96px;
   }
 }
