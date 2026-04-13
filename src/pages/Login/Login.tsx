@@ -9,6 +9,11 @@ import { authService, getContentImages } from '../../services/authService'
 import type { UserRole } from '../../types/auth'
 import styles from '../../styles/auth.module.css'
 
+// ── Email domain validation ───────────────────────────────
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email)
+}
+
 export default function Login() {
   const navigate = useNavigate()
 
@@ -30,9 +35,21 @@ export default function Login() {
 
   const validate = () => {
     const e: Record<string, string> = {}
-    if (!email.trim())               e.email    = 'Email is required'
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Enter a valid email'
-    if (!password)                   e.password = 'Password is required'
+
+    // Email
+    if (!email.trim()) {
+      e.email = 'Email is required'
+    } else if (!isValidEmail(email.trim())) {
+      e.email = 'Enter a valid email address (e.g. you@example.com)'
+    }
+
+    // Password
+    if (!password) {
+      e.password = 'Password is required'
+    } else if (password.length < 6) {
+      e.password = 'Password must be at least 6 characters'
+    }
+
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -194,19 +211,6 @@ export default function Login() {
                 </div>
                 {err('password')}
               </div>
-
-              {/* <div style={{
-                padding: '10px 14px',
-                borderRadius: 8,
-                background: '#f2f9e4',
-                border: '1px solid rgba(168,216,50,0.35)',
-                fontSize: 12,
-                color: '#3a4f3d',
-                lineHeight: 1.55,
-              }}>
-                🌿 Your role (Farmer, Buyer, or Seller) is detected
-                automatically. You'll be redirected to the right dashboard.
-              </div> */}
 
               <button
                 type="submit"

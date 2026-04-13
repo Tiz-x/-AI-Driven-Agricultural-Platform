@@ -18,6 +18,46 @@ import styles from "../../styles/auth.module.css";
 
 type Tab = "farmer" | "buyer" | "seller";
 
+// ── Password strength helper ──────────────────────────────
+function getPasswordStrength(pwd: string): {
+  score: number;       // 0–4
+  label: string;
+  color: string;
+} {
+  let score = 0;
+  if (pwd.length >= 6)                        score++;
+  if (pwd.length >= 10)                       score++;
+  if (/[0-9]/.test(pwd))                      score++;
+  if (/[^A-Za-z0-9]/.test(pwd))              score++;
+
+  const map = [
+    { label: "Too weak",  color: "#e05252" },
+    { label: "Weak",      color: "#e07c52" },
+    { label: "Fair",      color: "#e0b452" },
+    { label: "Good",      color: "#7db83a" },
+    { label: "Strong",    color: "#2d6a35" },
+  ];
+  return { score, ...map[score] };
+}
+
+// ── Email domain validation ───────────────────────────────
+function isValidEmail(email: string): boolean {
+  // Must match: something@something.tld (tld at least 2 chars)
+  return /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(email);
+}
+
+// ── Phone validation (Nigerian + international) ───────────
+function isValidPhone(phone: string): boolean {
+  const cleaned = phone.replace(/[\s\-().]/g, "");
+  // Nigerian: 08012345678 / +2348012345678 / 2348012345678
+  const nigerianLocal       = /^0[7-9][01]\d{8}$/.test(cleaned);
+  const nigerianIntlPlus    = /^\+234[7-9][01]\d{8}$/.test(cleaned);
+  const nigerianIntlNoPlus  = /^234[7-9][01]\d{8}$/.test(cleaned);
+  // Generic international: + followed by 7–15 digits
+  const genericIntl         = /^\+\d{7,15}$/.test(cleaned);
+  return nigerianLocal || nigerianIntlPlus || nigerianIntlNoPlus || genericIntl;
+}
+
 export default function Register() {
   const navigate = useNavigate();
 
@@ -48,12 +88,38 @@ export default function Register() {
 
   const validate = (): boolean => {
     const e: Record<string, string> = {};
-    if (!form.fullName.trim()) e.fullName = "Full name is required";
-    if (!form.email.trim()) e.email = "Email is required";
-    else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "Enter a valid email";
-    if (!form.phone.trim()) e.phone = "Phone number is required";
-    if (form.password.length < 6)
+
+    // Full name
+    if (!form.fullName.trim()) {
+      e.fullName = "Full name is required";
+    } else if (form.fullName.trim().split(" ").length < 2) {
+      e.fullName = "Enter your first and last name";
+    }
+
+    // Email
+    if (!form.email.trim()) {
+      e.email = "Email is required";
+    } else if (!isValidEmail(form.email.trim())) {
+      e.email = "Enter a valid email address (e.g. you@example.com)";
+    }
+
+    // Phone
+    if (!form.phone.trim()) {
+      e.phone = "Phone number is required";
+    } else if (!isValidPhone(form.phone.trim())) {
+      e.phone = "Enter a valid phone number (e.g. 08012345678 or +2348012345678)";
+    }
+
+    // Password
+    const pwd = form.password;
+    if (!pwd) {
+      e.password = "Password is required";
+    } else if (pwd.length < 6) {
       e.password = "Password must be at least 6 characters";
+    } else if (!/[0-9]/.test(pwd)) {
+      e.password = "Password must include at least one number";
+    }
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -65,7 +131,7 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const role = tab; // 'farmer', 'buyer', or 'seller' directly
+      const role = tab;
 
       const payload: RegisterPayload = {
         fullName: form.fullName,
@@ -100,6 +166,9 @@ export default function Register() {
         {errors[k]}
       </div>
     ) : null;
+
+  // Password strength meter
+  const pwdStrength = form.password ? getPasswordStrength(form.password) : null;
 
   return (
     <div className={styles.shell}>
@@ -163,44 +232,30 @@ export default function Register() {
           <h1 className={styles.formTitle}>Create Account</h1>
           <p className={styles.formSubtitle}>Choose your role to get started</p>
 
-          {/* Role tabs — now three separate options */}
+          {/* Role tabs */}
           <div className={styles.roleTabs}>
             <button
               type="button"
               className={`${styles.roleTab} ${tab === "farmer" ? styles.roleTabActive : ""}`}
-              onClick={() => {
-                setTab("farmer");
-                setErrors({});
-              }}
+              onClick={() => { setTab("farmer"); setErrors({}); }}
             >
-              <span className={styles.roleTabIcon}>
-                <GiWheat size={17} />
-              </span>
+              <span className={styles.roleTabIcon}><GiWheat size={17} /></span>
               Farmer
             </button>
             <button
               type="button"
               className={`${styles.roleTab} ${tab === "buyer" ? styles.roleTabActive : ""}`}
-              onClick={() => {
-                setTab("buyer");
-                setErrors({});
-              }}
+              onClick={() => { setTab("buyer"); setErrors({}); }}
             >
-              <span className={styles.roleTabIcon}>
-                <GiShoppingCart size={17} />
-              </span>
+              <span className={styles.roleTabIcon}><GiShoppingCart size={17} /></span>
               Buyer
             </button>
             <button
               type="button"
               className={`${styles.roleTab} ${tab === "seller" ? styles.roleTabActive : ""}`}
-              onClick={() => {
-                setTab("seller");
-                setErrors({});
-              }}
+              onClick={() => { setTab("seller"); setErrors({}); }}
             >
-              <span className={styles.roleTabIcon}><MdStorefront size={17} />
-              </span>
+              <span className={styles.roleTabIcon}><MdStorefront size={17} /></span>
               Seller
             </button>
           </div>
@@ -214,19 +269,19 @@ export default function Register() {
 
           <form onSubmit={handleSubmit} noValidate>
             <div className={styles.fields}>
+
               {/* Full Name */}
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Full Name</label>
                 <div className={styles.fieldInputWrap}>
-                  <span className={styles.fieldInputIcon}>
-                    <BsPerson size={15} />
-                  </span>
+                  <span className={styles.fieldInputIcon}><BsPerson size={15} /></span>
                   <input
                     className={`${styles.fieldInput} ${errors["fullName"] ? styles.fieldError : ""}`}
                     type="text"
                     placeholder="e.g. Adewale Okafor"
                     value={form.fullName}
                     onChange={(e) => set("fullName", e.target.value)}
+                    autoComplete="name"
                   />
                 </div>
                 {err("fullName")}
@@ -236,15 +291,14 @@ export default function Register() {
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Email Address</label>
                 <div className={styles.fieldInputWrap}>
-                  <span className={styles.fieldInputIcon}>
-                    <BsEnvelope size={14} />
-                  </span>
+                  <span className={styles.fieldInputIcon}><BsEnvelope size={14} /></span>
                   <input
                     className={`${styles.fieldInput} ${errors["email"] ? styles.fieldError : ""}`}
                     type="email"
                     placeholder="you@example.com"
                     value={form.email}
                     onChange={(e) => set("email", e.target.value)}
+                    autoComplete="email"
                   />
                 </div>
                 {err("email")}
@@ -254,15 +308,14 @@ export default function Register() {
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Phone Number</label>
                 <div className={styles.fieldInputWrap}>
-                  <span className={styles.fieldInputIcon}>
-                    <BsPhone size={14} />
-                  </span>
+                  <span className={styles.fieldInputIcon}><BsPhone size={14} /></span>
                   <input
                     className={`${styles.fieldInput} ${errors["phone"] ? styles.fieldError : ""}`}
                     type="tel"
                     placeholder="+234 800 000 0000"
                     value={form.phone}
                     onChange={(e) => set("phone", e.target.value)}
+                    autoComplete="tel"
                   />
                 </div>
                 {err("phone")}
@@ -272,15 +325,14 @@ export default function Register() {
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Password</label>
                 <div className={styles.fieldInputWrap}>
-                  <span className={styles.fieldInputIcon}>
-                    <BsPerson size={14} />
-                  </span>
+                  <span className={styles.fieldInputIcon}><BsPerson size={14} /></span>
                   <input
                     className={`${styles.fieldInput} ${errors["password"] ? styles.fieldError : ""}`}
                     type={showPwd ? "text" : "password"}
-                    placeholder="Minimum 6 characters"
+                    placeholder="Min 8 chars, uppercase, number, symbol"
                     value={form.password}
                     onChange={(e) => set("password", e.target.value)}
+                    autoComplete="new-password"
                   />
                   <button
                     type="button"
@@ -291,6 +343,64 @@ export default function Register() {
                     {showPwd ? <BsEyeSlash size={15} /> : <BsEye size={15} />}
                   </button>
                 </div>
+
+                {/* Password strength meter */}
+                {pwdStrength && (
+                  <div style={{ marginTop: 6 }}>
+                    <div style={{
+                      display: "flex", gap: 4, marginBottom: 4
+                    }}>
+                      {[0, 1, 2, 3].map((i) => (
+                        <div
+                          key={i}
+                          style={{
+                            flex: 1,
+                            height: 4,
+                            borderRadius: 99,
+                            background: i < pwdStrength.score
+                              ? pwdStrength.color
+                              : "#e0e0e0",
+                            transition: "background 0.3s",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: pwdStrength.color,
+                    }}>
+                      {pwdStrength.label}
+                    </span>
+                    {/* Requirements checklist */}
+                    <div style={{
+                      marginTop: 6,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 2,
+                    }}>
+                      {[
+                        { label: "At least 6 characters",        pass: form.password.length >= 6 },
+                        { label: "At least one number (0–9)",    pass: /[0-9]/.test(form.password) },
+                      ].map((req) => (
+                        <span
+                          key={req.label}
+                          style={{
+                            fontSize: 11,
+                            color: req.pass ? "#2d6a35" : "#999",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
+                          }}
+                        >
+                          <span>{req.pass ? "✓" : "○"}</span>
+                          {req.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {err("password")}
               </div>
 
@@ -301,9 +411,7 @@ export default function Register() {
                 disabled={loading}
               >
                 {loading ? (
-                  <>
-                    <div className={styles.spinner} /> Creating account...
-                  </>
+                  <><div className={styles.spinner} /> Creating account...</>
                 ) : (
                   <>
                     Create Account
