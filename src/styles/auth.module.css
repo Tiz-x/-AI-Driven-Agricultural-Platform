@@ -103,7 +103,6 @@
   overflow-y: auto;
 }
 
-/* top bar */
 /* ── TOP BAR ─────────────────────────────────────────── */
 .rightTopBar {
   display: flex;
@@ -171,25 +170,22 @@
 }
 .mobileLogoText span { color: #2d6a35; }
 
-/* On desktop, hide logo only if your left panel is visible */
 @media (min-width: 900px) { .mobileLogo { display: none; } }
 
-/* Tablet */
 @media (max-width: 768px) {
   .rightTopBar { padding: 16px 24px; }
 }
 
-/* Mobile — hide the "Already have an account?" text, keep button */
 @media (max-width: 480px) {
   .rightTopBar { padding: 12px 16px; }
-  .mobileLogo { display: flex; } /* always show on mobile */
+  .mobileLogo { display: flex; }
   .topBarText { display: none; }
   .topBarBtn { font-size: 12px; padding: 7px 14px; }
   .mobileLogoText { font-size: 14px; }
   .mobileLogoMark { width: 28px; height: 28px; border-radius: 7px; }
 }
 
-/* form container */
+/* ── FORM WRAP ───────────────────────────────────────── */
 .formWrap {
   flex: 1;
   display: flex;
@@ -232,7 +228,7 @@
 }
 .roleTabIcon { font-size: 16px; }
 
-/* intent toggle (buyer/seller inside buyer-seller tab) */
+/* intent toggle */
 .intentRow {
   display: flex; align-items: center; gap: 8px;
   margin-bottom: 20px;
@@ -303,7 +299,6 @@
   transform: translateY(-50%);
   color: #9ead9f; pointer-events: none;
 }
-/* password toggle */
 .fieldInputWrap .fieldInput { padding-right: 42px; }
 .fieldPasswordToggle {
   position: absolute; right: 13px; top: 50%;
@@ -347,6 +342,50 @@
   margin-top: 2px;
 }
 
+/* ── PASSWORD STRENGTH ───────────────────────────────── */
+.pwdStrength {
+  width: 100%;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pwdBars {
+  display: flex;
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 5px;
+}
+
+.pwdBar {
+  flex: 1;
+  height: 4px;
+  border-radius: 99px;
+  transition: background 0.3s ease;
+}
+
+.pwdLabel {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.pwdReqs {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.pwdReq {
+  font-size: 11px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transition: color 0.2s ease;
+}
+
 /* ── SUBMIT BUTTON ─────────────────────────────────── */
 .submitBtn {
   display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -379,7 +418,6 @@
 }
 .submitBtn:hover .submitBtnCircle { transform: translateX(3px); }
 
-/* loading spinner inside button */
 .spinner {
   width: 18px; height: 18px;
   border: 2px solid rgba(20,31,21,0.25);
