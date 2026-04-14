@@ -59,6 +59,7 @@ import {
   AKURE_AREAS,
 } from "../../services/marketService";
 import { authService } from "../../services/authService";
+import FloatingAI from "../../components/FloatingAI/FloatingAI";
 import styles from "./BuyerSellerDashboard.module.css";
 
 type Section =
@@ -99,7 +100,6 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-// Helper for image fallback
 const getImageFallback = (cropType: CropType): string => {
   const icons: Record<CropType, string> = {
     Maize: "🌽",
@@ -184,7 +184,6 @@ export default function BuyerSellerDashboard() {
       );
       return;
     }
-
     const newRequest = marketService.createRequest(
       showRequestModal.listing.id,
       user.id,
@@ -194,7 +193,6 @@ export default function BuyerSellerDashboard() {
       requestMsg ||
         `I would like to buy ${qty}kg of your ${showRequestModal.listing.cropType}`,
     );
-
     setShowRequestModal(null);
     setModal({ type: "requestSent", data: newRequest });
     refresh();
@@ -231,11 +229,8 @@ export default function BuyerSellerDashboard() {
 
   const handleIntentChange = (newIntent: Intent) => {
     setIntent(newIntent);
-    if (newIntent === "buy") {
-      setSection("marketplace");
-    } else {
-      setSection("sell");
-    }
+    if (newIntent === "buy") setSection("marketplace");
+    else setSection("sell");
   };
 
   const bottomNavItems = [
@@ -379,7 +374,6 @@ export default function BuyerSellerDashboard() {
                   </div>
                 </div>
               </div>
-
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>
                   Quantity Needed (kg) *
@@ -394,7 +388,6 @@ export default function BuyerSellerDashboard() {
                   placeholder={`Max ${showRequestModal.listing.remainingQty}kg`}
                 />
               </div>
-
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>
                   Message to Seller (Optional)
@@ -408,7 +401,6 @@ export default function BuyerSellerDashboard() {
                 />
               </div>
             </div>
-
             <div className={styles.modalBtns}>
               <button
                 className={styles.modalBtnPrimary}
@@ -490,7 +482,6 @@ export default function BuyerSellerDashboard() {
               AgroFlow<span>+</span>
             </span>
           </div>
-
           <div className={styles.profileRow}>
             <div className={styles.profileAvatar}>{initials}</div>
             <div className={styles.profileInfo}>
@@ -550,7 +541,6 @@ export default function BuyerSellerDashboard() {
           </button>
         </div>
 
-        {/* Sidebar Bottom - Update this section */}
         <div className={styles.sidebarBottom}>
           <button
             className={styles.sidebarBtn}
@@ -572,6 +562,7 @@ export default function BuyerSellerDashboard() {
 
       {/* Main Content */}
       <div className={styles.main}>
+        {/* ── TOPBAR ── */}
         <div className={styles.topbar}>
           <div className={styles.topbarLeft}>
             <button
@@ -599,6 +590,10 @@ export default function BuyerSellerDashboard() {
               </button>
             </div>
           </div>
+
+          {/* Agro AI pill */}
+          <FloatingAI navbarMode />
+
           <div className={styles.topbarRight}>
             <button
               className={styles.topbarIconBtn}
@@ -669,7 +664,6 @@ export default function BuyerSellerDashboard() {
               user={user}
               onUpdate={(updatedUser) => {
                 setUser(updatedUser);
-                // Update in auth service
                 const currentUser = authService.getUser();
                 if (currentUser) {
                   Object.assign(currentUser, updatedUser);
@@ -709,7 +703,7 @@ export default function BuyerSellerDashboard() {
 }
 
 // ══════════════════════════════════════════════════════
-// SETTINGS SECTION - Full functionality
+// SETTINGS SECTION
 // ══════════════════════════════════════════════════════
 function SectionSettings({
   user,
@@ -735,7 +729,6 @@ function SectionSettings({
     confirm: "",
   });
 
-  // Profile form state
   const [profileForm, setProfileForm] = useState({
     fullName: user.name || "",
     email: user.email || "",
@@ -744,7 +737,6 @@ function SectionSettings({
     bio: user.bio || "Agricultural entrepreneur passionate about fresh produce",
   });
 
-  // Notification settings
   const [notifSettings, setNotifSettings] = useState({
     emailAlerts: true,
     smsAlerts: true,
@@ -755,7 +747,6 @@ function SectionSettings({
     marketingEmails: false,
   });
 
-  // Privacy settings
   const [privacySettings, setPrivacySettings] = useState({
     showPhoneNumber: true,
     showEmail: false,
@@ -765,7 +756,6 @@ function SectionSettings({
     dataSharing: false,
   });
 
-  // Appearance settings
   const [appearanceSettings, setAppearanceSettings] = useState({
     darkMode: false,
     compactView: false,
@@ -776,8 +766,7 @@ function SectionSettings({
   const handleProfileUpdate = async () => {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 800));
-    const updatedUser = { ...user, ...profileForm };
-    onUpdate(updatedUser);
+    onUpdate({ ...user, ...profileForm });
     setSaving(false);
     alert("Profile updated successfully!");
   };
@@ -815,22 +804,17 @@ function SectionSettings({
     setSaving(false);
     alert("Notification settings saved!");
   };
-
   const handlePrivacyUpdate = async () => {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 500));
     setSaving(false);
     alert("Privacy settings saved!");
   };
-
   const handleAppearanceUpdate = async () => {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 500));
-    if (appearanceSettings.darkMode) {
-      document.body.classList.add("dark-mode");
-    } else {
-      document.body.classList.remove("dark-mode");
-    }
+    if (appearanceSettings.darkMode) document.body.classList.add("dark-mode");
+    else document.body.classList.remove("dark-mode");
     setSaving(false);
     alert("Appearance settings saved!");
   };
@@ -856,6 +840,23 @@ function SectionSettings({
     { id: "about", label: "About", icon: <RiInformationLine size={16} /> },
   ];
 
+  const Toggle = ({
+    checked,
+    onChange,
+  }: {
+    checked: boolean;
+    onChange: (v: boolean) => void;
+  }) => (
+    <label className={styles.switch}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span className={styles.slider}></span>
+    </label>
+  );
+
   return (
     <div className={styles.settingsContainer}>
       <div className={styles.pageHeader}>
@@ -865,7 +866,6 @@ function SectionSettings({
         </div>
       </div>
 
-      {/* Settings Tabs */}
       <div className={styles.settingsTabs}>
         {tabs.map((tab) => (
           <button
@@ -878,7 +878,6 @@ function SectionSettings({
         ))}
       </div>
 
-      {/* Profile Settings */}
       {activeTab === "profile" && (
         <div className={styles.settingsCard}>
           <div className={styles.settingsSection}>
@@ -886,50 +885,24 @@ function SectionSettings({
               Personal Information
             </h3>
             <div className={styles.formFields}>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Full Name</label>
-                <input
-                  type="text"
-                  className={styles.fieldInput}
-                  value={profileForm.fullName}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, fullName: e.target.value })
-                  }
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Email Address</label>
-                <input
-                  type="email"
-                  className={styles.fieldInput}
-                  value={profileForm.email}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, email: e.target.value })
-                  }
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Phone Number</label>
-                <input
-                  type="tel"
-                  className={styles.fieldInput}
-                  value={profileForm.phone}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, phone: e.target.value })
-                  }
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Location</label>
-                <input
-                  type="text"
-                  className={styles.fieldInput}
-                  value={profileForm.location}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, location: e.target.value })
-                  }
-                />
-              </div>
+              {[
+                { label: "Full Name", key: "fullName", type: "text" },
+                { label: "Email Address", key: "email", type: "email" },
+                { label: "Phone Number", key: "phone", type: "tel" },
+                { label: "Location", key: "location", type: "text" },
+              ].map(({ label, key, type }) => (
+                <div className={styles.fieldGroup} key={key}>
+                  <label className={styles.fieldLabel}>{label}</label>
+                  <input
+                    type={type}
+                    className={styles.fieldInput}
+                    value={(profileForm as any)[key]}
+                    onChange={(e) =>
+                      setProfileForm({ ...profileForm, [key]: e.target.value })
+                    }
+                  />
+                </div>
+              ))}
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Bio</label>
                 <textarea
@@ -954,7 +927,6 @@ function SectionSettings({
         </div>
       )}
 
-      {/* Notification Settings */}
       {activeTab === "notifications" && (
         <div className={styles.settingsCard}>
           <div className={styles.settingsSection}>
@@ -962,111 +934,46 @@ function SectionSettings({
               Notification Preferences
             </h3>
             <div className={styles.toggleList}>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Email Alerts</div>
-                  <div className={styles.toggleDesc}>
-                    Receive email notifications about matches and requests
+              {[
+                {
+                  label: "Email Alerts",
+                  desc: "Receive email notifications about matches and requests",
+                  key: "emailAlerts",
+                },
+                {
+                  label: "SMS Alerts",
+                  desc: "Get text messages for urgent updates",
+                  key: "smsAlerts",
+                },
+                {
+                  label: "Push Notifications",
+                  desc: "In-app notifications for activity",
+                  key: "pushNotifications",
+                },
+                {
+                  label: "Match Alerts",
+                  desc: "Notify when you get a new match",
+                  key: "matchAlerts",
+                },
+                {
+                  label: "Marketing Emails",
+                  desc: "Receive promotions and updates",
+                  key: "marketingEmails",
+                },
+              ].map(({ label, desc, key }) => (
+                <div className={styles.toggleItem} key={key}>
+                  <div>
+                    <div className={styles.toggleLabel}>{label}</div>
+                    <div className={styles.toggleDesc}>{desc}</div>
                   </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={notifSettings.emailAlerts}
-                    onChange={(e) =>
-                      setNotifSettings({
-                        ...notifSettings,
-                        emailAlerts: e.target.checked,
-                      })
+                  <Toggle
+                    checked={(notifSettings as any)[key]}
+                    onChange={(v) =>
+                      setNotifSettings({ ...notifSettings, [key]: v })
                     }
                   />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>SMS Alerts</div>
-                  <div className={styles.toggleDesc}>
-                    Get text messages for urgent updates
-                  </div>
                 </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={notifSettings.smsAlerts}
-                    onChange={(e) =>
-                      setNotifSettings({
-                        ...notifSettings,
-                        smsAlerts: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Push Notifications</div>
-                  <div className={styles.toggleDesc}>
-                    In-app notifications for activity
-                  </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={notifSettings.pushNotifications}
-                    onChange={(e) =>
-                      setNotifSettings({
-                        ...notifSettings,
-                        pushNotifications: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Match Alerts</div>
-                  <div className={styles.toggleDesc}>
-                    Notify when you get a new match
-                  </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={notifSettings.matchAlerts}
-                    onChange={(e) =>
-                      setNotifSettings({
-                        ...notifSettings,
-                        matchAlerts: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Marketing Emails</div>
-                  <div className={styles.toggleDesc}>
-                    Receive promotions and updates
-                  </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={notifSettings.marketingEmails}
-                    onChange={(e) =>
-                      setNotifSettings({
-                        ...notifSettings,
-                        marketingEmails: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
+              ))}
             </div>
             <button
               className={styles.saveBtn}
@@ -1079,119 +986,51 @@ function SectionSettings({
         </div>
       )}
 
-      {/* Privacy Settings */}
       {activeTab === "privacy" && (
         <div className={styles.settingsCard}>
           <div className={styles.settingsSection}>
             <h3 className={styles.settingsSectionTitle}>Privacy Controls</h3>
             <div className={styles.toggleList}>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Show Phone Number</div>
-                  <div className={styles.toggleDesc}>
-                    Let buyers see your phone number
+              {[
+                {
+                  label: "Show Phone Number",
+                  desc: "Let buyers see your phone number",
+                  key: "showPhoneNumber",
+                },
+                {
+                  label: "Show Email",
+                  desc: "Display email on your profile",
+                  key: "showEmail",
+                },
+                {
+                  label: "Show Location",
+                  desc: "Share your general location",
+                  key: "showLocation",
+                },
+                {
+                  label: "Allow Direct Messages",
+                  desc: "Let others message you directly",
+                  key: "allowMessages",
+                },
+                {
+                  label: "Show in Search",
+                  desc: "Appear in marketplace searches",
+                  key: "showInSearch",
+                },
+              ].map(({ label, desc, key }) => (
+                <div className={styles.toggleItem} key={key}>
+                  <div>
+                    <div className={styles.toggleLabel}>{label}</div>
+                    <div className={styles.toggleDesc}>{desc}</div>
                   </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={privacySettings.showPhoneNumber}
-                    onChange={(e) =>
-                      setPrivacySettings({
-                        ...privacySettings,
-                        showPhoneNumber: e.target.checked,
-                      })
+                  <Toggle
+                    checked={(privacySettings as any)[key]}
+                    onChange={(v) =>
+                      setPrivacySettings({ ...privacySettings, [key]: v })
                     }
                   />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Show Email</div>
-                  <div className={styles.toggleDesc}>
-                    Display email on your profile
-                  </div>
                 </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={privacySettings.showEmail}
-                    onChange={(e) =>
-                      setPrivacySettings({
-                        ...privacySettings,
-                        showEmail: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Show Location</div>
-                  <div className={styles.toggleDesc}>
-                    Share your general location
-                  </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={privacySettings.showLocation}
-                    onChange={(e) =>
-                      setPrivacySettings({
-                        ...privacySettings,
-                        showLocation: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>
-                    Allow Direct Messages
-                  </div>
-                  <div className={styles.toggleDesc}>
-                    Let others message you directly
-                  </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={privacySettings.allowMessages}
-                    onChange={(e) =>
-                      setPrivacySettings({
-                        ...privacySettings,
-                        allowMessages: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Show in Search</div>
-                  <div className={styles.toggleDesc}>
-                    Appear in marketplace searches
-                  </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={privacySettings.showInSearch}
-                    onChange={(e) =>
-                      setPrivacySettings({
-                        ...privacySettings,
-                        showInSearch: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
+              ))}
             </div>
             <button
               className={styles.saveBtn}
@@ -1208,52 +1047,36 @@ function SectionSettings({
         </div>
       )}
 
-      {/* Appearance Settings */}
       {activeTab === "appearance" && (
         <div className={styles.settingsCard}>
           <div className={styles.settingsSection}>
             <h3 className={styles.settingsSectionTitle}>Appearance</h3>
             <div className={styles.toggleList}>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Dark Mode</div>
-                  <div className={styles.toggleDesc}>Switch to dark theme</div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={appearanceSettings.darkMode}
-                    onChange={(e) =>
-                      setAppearanceSettings({
-                        ...appearanceSettings,
-                        darkMode: e.target.checked,
-                      })
-                    }
-                  />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
-              <div className={styles.toggleItem}>
-                <div>
-                  <div className={styles.toggleLabel}>Compact View</div>
-                  <div className={styles.toggleDesc}>
-                    Show more items per page
+              {[
+                {
+                  label: "Dark Mode",
+                  desc: "Switch to dark theme",
+                  key: "darkMode",
+                },
+                {
+                  label: "Compact View",
+                  desc: "Show more items per page",
+                  key: "compactView",
+                },
+              ].map(({ label, desc, key }) => (
+                <div className={styles.toggleItem} key={key}>
+                  <div>
+                    <div className={styles.toggleLabel}>{label}</div>
+                    <div className={styles.toggleDesc}>{desc}</div>
                   </div>
-                </div>
-                <label className={styles.switch}>
-                  <input
-                    type="checkbox"
-                    checked={appearanceSettings.compactView}
-                    onChange={(e) =>
-                      setAppearanceSettings({
-                        ...appearanceSettings,
-                        compactView: e.target.checked,
-                      })
+                  <Toggle
+                    checked={(appearanceSettings as any)[key]}
+                    onChange={(v) =>
+                      setAppearanceSettings({ ...appearanceSettings, [key]: v })
                     }
                   />
-                  <span className={styles.slider}></span>
-                </label>
-              </div>
+                </div>
+              ))}
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>Language</label>
                 <select
@@ -1266,11 +1089,9 @@ function SectionSettings({
                     })
                   }
                 >
-                  <option>English</option>
-                  <option>Yoruba</option>
-                  <option>Hausa</option>
-                  <option>Igbo</option>
-                  <option>French</option>
+                  {["English", "Yoruba", "Hausa", "Igbo", "French"].map((l) => (
+                    <option key={l}>{l}</option>
+                  ))}
                 </select>
               </div>
               <div className={styles.fieldGroup}>
@@ -1285,9 +1106,9 @@ function SectionSettings({
                     })
                   }
                 >
-                  <option>small</option>
-                  <option>medium</option>
-                  <option>large</option>
+                  {["small", "medium", "large"].map((s) => (
+                    <option key={s}>{s}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -1302,7 +1123,6 @@ function SectionSettings({
         </div>
       )}
 
-      {/* Security Settings */}
       {activeTab === "security" && (
         <div className={styles.settingsCard}>
           <div className={styles.settingsSection}>
@@ -1351,7 +1171,6 @@ function SectionSettings({
         </div>
       )}
 
-      {/* About Settings */}
       {activeTab === "about" && (
         <div className={styles.settingsCard}>
           <div className={styles.settingsSection}>
@@ -1382,7 +1201,6 @@ function SectionSettings({
         </div>
       )}
 
-      {/* Password Change Modal */}
       {showPasswordModal && (
         <div
           className={styles.modalOverlay}
@@ -1398,47 +1216,26 @@ function SectionSettings({
             </div>
             <div className={styles.modalTitle}>Change Password</div>
             <div className={styles.formFields}>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Current Password</label>
-                <input
-                  type="password"
-                  className={styles.fieldInput}
-                  value={passwordData.current}
-                  onChange={(e) =>
-                    setPasswordData({
-                      ...passwordData,
-                      current: e.target.value,
-                    })
-                  }
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>New Password</label>
-                <input
-                  type="password"
-                  className={styles.fieldInput}
-                  value={passwordData.new}
-                  onChange={(e) =>
-                    setPasswordData({ ...passwordData, new: e.target.value })
-                  }
-                />
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  className={styles.fieldInput}
-                  value={passwordData.confirm}
-                  onChange={(e) =>
-                    setPasswordData({
-                      ...passwordData,
-                      confirm: e.target.value,
-                    })
-                  }
-                />
-              </div>
+              {[
+                { label: "Current Password", key: "current" },
+                { label: "New Password", key: "new" },
+                { label: "Confirm New Password", key: "confirm" },
+              ].map(({ label, key }) => (
+                <div className={styles.fieldGroup} key={key}>
+                  <label className={styles.fieldLabel}>{label}</label>
+                  <input
+                    type="password"
+                    className={styles.fieldInput}
+                    value={(passwordData as any)[key]}
+                    onChange={(e) =>
+                      setPasswordData({
+                        ...passwordData,
+                        [key]: e.target.value,
+                      })
+                    }
+                  />
+                </div>
+              ))}
             </div>
             <div className={styles.modalBtns}>
               <button
@@ -1458,7 +1255,6 @@ function SectionSettings({
         </div>
       )}
 
-      {/* Delete Account Modal */}
       {showDeleteModal && (
         <div
           className={styles.modalOverlay}
@@ -1524,7 +1320,6 @@ function SectionMarketplace({
           harvested
         </div>
       </div>
-
       <div className={styles.cropTabs}>
         {(["All", ...CROPS] as (CropType | "All")[]).map((c) => (
           <button
@@ -1536,7 +1331,6 @@ function SectionMarketplace({
           </button>
         ))}
       </div>
-
       {listings.length === 0 ? (
         <div className={styles.emptyState}>
           <div className={styles.emptyIcon}>
@@ -1609,7 +1403,6 @@ function ListingCard({
           </div>
         )}
       </div>
-
       <div className={styles.cardInfo}>
         <div className={styles.sellerRow}>
           <div className={styles.sellerAvatar}>
@@ -1623,7 +1416,6 @@ function ListingCard({
             </div>
           </div>
         </div>
-
         <div className={styles.produceStats}>
           <div className={styles.statItem}>
             <span className={styles.statValue}>{listing.remainingQty}kg</span>
@@ -1635,7 +1427,6 @@ function ListingCard({
             <span className={styles.statLabel}>Quality</span>
           </div>
         </div>
-
         {listing.description && (
           <p className={styles.produceDesc}>
             {listing.description.length > 80
@@ -1643,7 +1434,6 @@ function ListingCard({
               : listing.description}
           </p>
         )}
-
         {intent === "buy" && listing.status !== "sold" && (
           <button
             className={styles.requestBtn}
@@ -1652,7 +1442,6 @@ function ListingCard({
             Request to Buy
           </button>
         )}
-
         {intent === "sell" && (
           <button className={styles.yourListingBtn} disabled>
             Your Listing
@@ -1782,7 +1571,7 @@ function SectionMyStore({
 }
 
 // ══════════════════════════════════════════════════════
-// POST LISTING SECTION with Camera/File Upload
+// POST LISTING SECTION
 // ══════════════════════════════════════════════════════
 function SectionPostListing({
   user,
@@ -1812,12 +1601,11 @@ function SectionPostListing({
         alert("Image is too large. Please choose an image under 5MB.");
         return;
       }
-
       const reader = new FileReader();
       reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setImagePreview(base64String);
-        setF("photoUrl", base64String);
+        const b = reader.result as string;
+        setImagePreview(b);
+        setF("photoUrl", b);
       };
       reader.readAsDataURL(file);
     }
@@ -1833,9 +1621,9 @@ function SectionPostListing({
       if (file) {
         const reader = new FileReader();
         reader.onloadend = () => {
-          const base64String = reader.result as string;
-          setImagePreview(base64String);
-          setF("photoUrl", base64String);
+          const b = reader.result as string;
+          setImagePreview(b);
+          setF("photoUrl", b);
         };
         reader.readAsDataURL(file);
       }
@@ -1905,7 +1693,6 @@ function SectionPostListing({
               </select>
             </div>
           </div>
-
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Available Quantity (kg)</label>
             <input
@@ -1920,7 +1707,6 @@ function SectionPostListing({
               <span className={styles.fieldErrMsg}>{errors.quantity}</span>
             )}
           </div>
-
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Product Photo</label>
             <div className={styles.photoUploadArea}>
@@ -1980,7 +1766,6 @@ function SectionPostListing({
               )}
             </div>
           </div>
-
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Description</label>
             <textarea
@@ -1993,7 +1778,6 @@ function SectionPostListing({
               <span className={styles.fieldErrMsg}>{errors.description}</span>
             )}
           </div>
-
           <button
             className={styles.formSubmitBtn}
             type="submit"
@@ -2032,7 +1816,6 @@ function SectionPostDemand({
   });
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-
   const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
 
   const validate = () => {
@@ -2094,7 +1877,6 @@ function SectionPostDemand({
               </select>
             </div>
           </div>
-
           <div className={styles.fieldGroup}>
             <label className={styles.fieldLabel}>Quantity Needed (kg)</label>
             <input
@@ -2109,7 +1891,6 @@ function SectionPostDemand({
               <span className={styles.fieldErrMsg}>{errors.quantity}</span>
             )}
           </div>
-
           <div
             style={{
               background: "#f2f9e4",
@@ -2128,7 +1909,6 @@ function SectionPostDemand({
             Our system will check available sellers in Akure and match you by
             closest location first.
           </div>
-
           <button
             className={styles.formSubmitBtn}
             type="submit"
@@ -2173,7 +1953,6 @@ function SectionMatches({
       </div>
     );
   }
-
   return (
     <div className={styles.matchesList}>
       {matches.map((m) => (
@@ -2216,13 +1995,7 @@ function SectionMatches({
             }}
           >
             <span
-              className={`${styles.matchStatusChip} ${
-                m.status === "confirmed"
-                  ? styles.chipConfirmed
-                  : m.status === "pending_delivery"
-                    ? styles.chipDelivery
-                    : styles.chipDelivered
-              }`}
+              className={`${styles.matchStatusChip} ${m.status === "confirmed" ? styles.chipConfirmed : m.status === "pending_delivery" ? styles.chipDelivery : styles.chipDelivered}`}
             >
               {m.status.replace("_", " ")}
             </span>
@@ -2259,7 +2032,6 @@ function SectionRequests({
       </div>
     );
   }
-
   return (
     <div className={styles.requestsList}>
       {requests.map((req) => (
@@ -2324,7 +2096,6 @@ function SectionWaitlist({ waitlist }: { waitlist: Demand[] }) {
       </div>
     );
   }
-
   return (
     <div className={styles.waitlistList}>
       {waitlist.map((d) => (
@@ -2371,7 +2142,6 @@ function SectionNotifications({
       </div>
     );
   }
-
   return (
     <>
       <div
@@ -2400,9 +2170,7 @@ function SectionNotifications({
           <div
             key={n.id}
             className={`${styles.notifCard} ${!n.read ? styles.notifUnread : ""}`}
-            onClick={() => {
-              marketService.markNotifRead(n.id);
-            }}
+            onClick={() => marketService.markNotifRead(n.id)}
           >
             <div
               className={`${styles.notifIconWrap} ${n.type === "match" ? styles.notiflime : styles.notifamber}`}

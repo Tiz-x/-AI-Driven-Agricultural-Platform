@@ -1,4 +1,6 @@
-/* ── Floating button ─────────────────────────────── */
+/* ════════════════════════════════════════════
+   FLOATING BUTTON — mobile only
+════════════════════════════════════════════ */
 .floatBtn {
   position: fixed;
   bottom: 88px;
@@ -28,7 +30,7 @@
   border-color: #A8D832;
 }
 
-/* Pulse ring for first-time visibility */
+/* Pulse ring */
 .floatPulse {
   position: absolute;
   width: 100%;
@@ -43,7 +45,7 @@
   100% { transform: scale(1.7); opacity: 0;   }
 }
 
-/* ── Tooltip ─────────────────────────────────────── */
+/* Float tooltip */
 .tooltip {
   position: fixed;
   bottom: 156px;
@@ -91,7 +93,181 @@
   transform: rotate(45deg);
 }
 
-/* ── Chat window ─────────────────────────────────── */
+/* Hide float on desktop — navbar pill takes over */
+@media (min-width: 769px) {
+  .floatBtn { display: none; }
+  .tooltip  { display: none; }
+}
+
+@media (max-width: 480px) {
+  .floatBtn {
+    bottom: 90px;
+    right: 16px;
+    width: 52px;
+    height: 52px;
+  }
+  .tooltip {
+    bottom: 158px;
+    right: 16px;
+    max-width: 170px;
+  }
+}
+
+/* ════════════════════════════════════════════
+   NAVBAR PILL — desktop only
+════════════════════════════════════════════ */
+.navPillWrap {
+  position: relative;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (min-width: 769px) {
+  .navPillWrap { display: flex; }
+}
+
+/* The pill button */
+.navPill {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px 7px 10px;
+  border-radius: 100px;
+  background: #141F15;
+  border: 1.5px solid rgba(168,216,50,0.5);
+  color: #A8D832;
+  font-family: var(--font, 'Inter', sans-serif);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s;
+  box-shadow: 0 2px 12px rgba(168,216,50,0.2);
+  overflow: visible;
+}
+
+.navPill:hover {
+  background: #1E3D22;
+  border-color: #A8D832;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(168,216,50,0.3);
+}
+
+.navPillActive {
+  background: #1E3D22;
+  border-color: #A8D832;
+}
+
+/* Pulse ring on the pill */
+.navPillPulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 100px;
+  border: 2px solid #A8D832;
+  animation: navPulse 2s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes navPulse {
+  0%   { opacity: 0.7; transform: scale(1);    }
+  100% { opacity: 0;   transform: scale(1.18); }
+}
+
+.navPillIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #2D6A35;
+  border: 1px solid rgba(168,216,50,0.4);
+  flex-shrink: 0;
+}
+
+.navPillText {
+  color: white;
+}
+
+.navPillBadge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 100px;
+  background: rgba(168,216,50,0.15);
+  border: 1px solid rgba(168,216,50,0.35);
+  color: #A8D832;
+  letter-spacing: 0.02em;
+}
+
+/* Navbar tooltip — drops DOWN from pill */
+.navTooltip {
+  position: absolute;
+  top: calc(100% + 14px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #141F15;
+  border: 1px solid rgba(168,216,50,0.3);
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  z-index: 999;
+  width: 230px;
+  animation: fadeDown 0.3s ease;
+  box-shadow: 0 8px 32px rgba(20,31,21,0.25);
+}
+
+.navTooltip p {
+  font-size: 12.5px;
+  color: #e8f0e0;
+  font-weight: 500;
+  line-height: 1.6;
+  font-family: var(--font, 'Inter', sans-serif);
+  margin: 0 0 4px;
+}
+
+.navTooltip p:last-of-type { margin-bottom: 0; }
+
+.navTooltipClose {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: #9EAD9F;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.15s;
+}
+.navTooltipClose:hover { color: white; }
+
+/* Arrow pointing UP toward the pill */
+.navTooltip::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background: #141F15;
+  border-left: 1px solid rgba(168,216,50,0.3);
+  border-top: 1px solid rgba(168,216,50,0.3);
+}
+
+@keyframes fadeDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);    }
+}
+
+/* ════════════════════════════════════════════
+   CHAT WINDOW (shared)
+════════════════════════════════════════════ */
 .chatWindow {
   position: fixed;
   bottom: 156px;
@@ -114,7 +290,6 @@
   to   { opacity: 1; transform: translateY(0);    }
 }
 
-/* Header */
 .chatHeader {
   background: #141F15;
   padding: 14px 16px;
@@ -178,10 +353,8 @@
   border-radius: 6px;
   transition: color 0.15s;
 }
-
 .chatCloseBtn:hover { color: white; }
 
-/* Messages area */
 .chatMessages {
   flex: 1;
   overflow-y: auto;
@@ -198,9 +371,7 @@
   gap: 7px;
 }
 
-.msgRowUser {
-  flex-direction: row-reverse;
-}
+.msgRowUser { flex-direction: row-reverse; }
 
 .msgAvatar {
   width: 26px;
@@ -245,7 +416,6 @@
 
 .msgBubbleUser .msgTime { color: rgba(255,255,255,0.5); }
 
-/* Typing dots */
 .typingDots {
   display: flex;
   gap: 4px;
@@ -268,7 +438,6 @@
   30%            { transform: translateY(-6px); }
 }
 
-/* Quick questions */
 .quickQuestions {
   display: flex;
   gap: 6px;
@@ -300,7 +469,6 @@
 
 .quickBtn:hover { background: #E6F5D0; }
 
-/* Input */
 .chatInput {
   display: flex;
   align-items: center;
@@ -325,10 +493,7 @@
   transition: border-color 0.2s;
 }
 
-.chatInputField:focus {
-  border-color: #A8D832;
-}
-
+.chatInputField:focus { border-color: #A8D832; }
 .chatInputField::placeholder { color: #9EAD9F; }
 
 .chatSendBtn {
@@ -349,19 +514,4 @@
 .chatSendBtnActive {
   background: #141F15;
   color: #A8D832;
-}
-
-@media (max-width: 480px) {
-  .floatBtn {
-    bottom: 90px;
-    right: 16px;
-    width: 52px;
-    height: 52px;
-  }
-
-  .tooltip {
-    bottom: 158px;
-    right: 16px;
-    max-width: 170px;
-  }
 }

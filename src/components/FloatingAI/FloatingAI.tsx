@@ -4,12 +4,17 @@ import { MdClose } from 'react-icons/md'
 import { useNavigate } from 'react-router-dom'
 import styles from './FloatingAI.module.css'
 
-export default function FloatingAI() {
+interface Props {
+  /** When true, renders the compact navbar pill variant (desktop only) */
+  navbarMode?: boolean
+}
+
+export default function FloatingAI({ navbarMode = false }: Props) {
   const navigate                      = useNavigate()
   const [showTooltip, setShowTooltip] = useState(false)
   const [hasOpened, setHasOpened]     = useState(false)
 
-  // Show tooltip after 3 seconds on first visit
+  // Show tooltip after 3 s on first visit
   useEffect(() => {
     const seen = localStorage.getItem('agf_ai_tooltip_seen')
     if (!seen) {
@@ -18,7 +23,7 @@ export default function FloatingAI() {
     }
   }, [])
 
-  // Hide tooltip after 6 seconds
+  // Auto-hide tooltip after 6 s
   useEffect(() => {
     if (showTooltip) {
       const timer = setTimeout(() => setShowTooltip(false), 6000)
@@ -33,9 +38,42 @@ export default function FloatingAI() {
     navigate('/farmer/dashboard')
   }
 
+  /* ── NAVBAR PILL (desktop) ─────────────────────── */
+  if (navbarMode) {
+    return (
+      <div className={styles.navPillWrap}>
+        {showTooltip && (
+          <div className={styles.navTooltip}>
+            <p>👋 <strong>Hey there!</strong> I'm Agro, your personal farming AI.</p>
+            <p>Ask me anything about your crops, market prices, or schedule.</p>
+            <button
+              className={styles.navTooltipClose}
+              onClick={() => setShowTooltip(false)}
+            >
+              <MdClose size={12} />
+            </button>
+          </div>
+        )}
+
+        <button
+          className={`${styles.navPill} ${showTooltip ? styles.navPillActive : ''}`}
+          onClick={handleClick}
+          aria-label="Open Agro AI assistant"
+        >
+          {!hasOpened && <span className={styles.navPillPulse} />}
+          <span className={styles.navPillIcon}>
+            <RiRobot2Fill size={16} />
+          </span>
+          <span className={styles.navPillText}>Ask Agro AI</span>
+          <span className={styles.navPillBadge}>✨ New</span>
+        </button>
+      </div>
+    )
+  }
+
+  /* ── FLOATING BUTTON (mobile) ──────────────────── */
   return (
     <>
-      {/* Tooltip */}
       {showTooltip && (
         <div className={styles.tooltip}>
           <p>👋 Need assistance?</p>
@@ -49,7 +87,6 @@ export default function FloatingAI() {
         </div>
       )}
 
-      {/* Floating button */}
       <button
         className={styles.floatBtn}
         onClick={handleClick}
