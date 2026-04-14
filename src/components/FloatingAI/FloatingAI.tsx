@@ -44,8 +44,8 @@ export default function FloatingAI({ navbarMode = false }: Props) {
       <div className={styles.navPillWrap}>
         {showTooltip && (
           <div className={styles.navTooltip}>
-            <p>👋 <strong>Hey there!</strong> I'm Agro, your personal farming AI.</p>
-            <p>Ask me anything about your crops, market prices, or schedule.</p>
+            <p>👋 Need assistance?</p>
+            <p>I'm Agro, your personal farming buddy!</p>
             <button
               className={styles.navTooltipClose}
               onClick={() => setShowTooltip(false)}
@@ -65,7 +65,7 @@ export default function FloatingAI({ navbarMode = false }: Props) {
             <RiRobot2Fill size={16} />
           </span>
           <span className={styles.navPillText}>Ask Agro AI</span>
-          <span className={styles.navPillBadge}>✨ New</span>
+          {/* <span className={styles.navPillBadge}>✨ New</span> */}
         </button>
       </div>
     )
