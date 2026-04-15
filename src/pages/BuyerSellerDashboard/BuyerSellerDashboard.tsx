@@ -154,17 +154,26 @@ export default function BuyerSellerDashboard() {
   }>(null);
 
   useEffect(() => {
-    marketService.init();
     refresh();
   }, []);
 
-  function refresh() {
-    setListings(marketService.getListings());
-    setMatches(marketService.getMatchesByUser(user.id));
-    setWaitlist(marketService.getWaitlistByUser(user.id));
-    setNotifs(marketService.getNotifications(user.id));
-    setMyListings(marketService.getListingsBySeller(user.id));
-    setMyRequests(marketService.getRequestsByBuyer(user.id));
+  async function refresh() {
+    try {
+      const [listings, matches, waitlist, myListings] = await Promise.all([
+        marketService.getListings(user.location),
+        marketService.getMatches(),
+        marketService.getWaitlist(),
+        marketService.getListingsBySeller(),
+      ]);
+      setListings(listings);
+      setMatches(matches);
+      setWaitlist(waitlist);
+      setMyListings(myListings);
+      setNotifs(marketService.getNotifications(user.id));
+      setMyRequests([]);
+    } catch (err) {
+      console.error("Refresh error:", err);
+    }
   }
 
   const unread = notifs.filter((n) => !n.read).length;
@@ -175,7 +184,7 @@ export default function BuyerSellerDashboard() {
     setRequestMsg("");
   };
 
-  const submitRequest = () => {
+  const submitRequest = async () => {
     const qty = Number(requestQty);
     if (!showRequestModal) return;
     if (qty <= 0 || qty > showRequestModal.listing.remainingQty) {
@@ -184,34 +193,46 @@ export default function BuyerSellerDashboard() {
       );
       return;
     }
-    const newRequest = marketService.createRequest(
+
+    const result = await marketService.createRequest(
       showRequestModal.listing.id,
-      user.id,
-      user.name,
-      user.email,
       qty,
       requestMsg ||
         `I would like to buy ${qty}kg of your ${showRequestModal.listing.cropType}`,
+      user.location || "Ijapo Estate",
     );
+
+    if (!result.success) {
+      alert(result.error || "Failed to send request");
+      return;
+    }
+
     setShowRequestModal(null);
-    setModal({ type: "requestSent", data: newRequest });
+    setModal({ type: "requestSent", data: result.request });
     refresh();
   };
 
-  const handleAcceptRequest = (request: Request) => {
+  const handleAcceptRequest = async (request: Request) => {
     if (
       window.confirm(
         `Accept ${request.buyerName}'s request for ${request.requestedQty}kg?`,
       )
     ) {
-      marketService.acceptRequest(request.id);
+      const result = await marketService.acceptRequest(
+        request.id,
+        user.location || "Ijapo Estate",
+      );
+      if (!result.success) {
+        alert(result.error || "Failed to accept request");
+        return;
+      }
       refresh();
     }
   };
 
-  const handleRejectRequest = (request: Request) => {
+  const handleRejectRequest = async (request: Request) => {
     if (window.confirm(`Reject ${request.buyerName}'s request?`)) {
-      marketService.rejectRequest(request.id);
+      await marketService.rejectRequest(request.id);
       refresh();
     }
   };
@@ -1574,7 +1595,6 @@ function SectionMyStore({
 // POST LISTING SECTION
 // ══════════════════════════════════════════════════════
 function SectionPostListing({
-  user,
   onSuccess,
 }: {
   user: any;
@@ -1645,16 +1665,19 @@ function SectionPostListing({
     if (!validate()) return;
     setLoading(true);
     await new Promise((r) => setTimeout(r, 700));
-    marketService.postListing({
-      sellerId: user.id,
-      sellerName: user.name,
-      sellerEmail: user.email,
+    const result = await marketService.postListing({
       cropType: form.cropType,
       quantity: Number(form.quantity),
       location: form.location,
       description: form.description,
       photoUrl: form.photoUrl || undefined,
     });
+
+    if (!result.success) {
+      alert(result.error || "Failed to post listing");
+      setLoading(false);
+      return;
+    }
     setLoading(false);
     onSuccess();
   };
@@ -1803,7 +1826,6 @@ function SectionPostListing({
 // POST DEMAND SECTION
 // ══════════════════════════════════════════════════════
 function SectionPostDemand({
-  user,
   onResult,
 }: {
   user: any;
@@ -1831,10 +1853,7 @@ function SectionPostDemand({
     if (!validate()) return;
     setLoading(true);
     await new Promise((r) => setTimeout(r, 900));
-    const result = marketService.postDemand({
-      buyerId: user.id,
-      buyerName: user.name,
-      buyerEmail: user.email,
+    const result = await marketService.postDemand({
       cropType: form.cropType,
       quantity: Number(form.quantity),
       location: form.location,
@@ -1995,7 +2014,13 @@ function SectionMatches({
             }}
           >
             <span
-              className={`${styles.matchStatusChip} ${m.status === "confirmed" ? styles.chipConfirmed : m.status === "pending_delivery" ? styles.chipDelivery : styles.chipDelivered}`}
+              className={`${styles.matchStatusChip} ${
+                m.status === "confirmed"
+                  ? styles.chipConfirmed
+                  : m.status === "pending"
+                    ? styles.chipPending
+                    : styles.chipDelivered
+              }`}
             >
               {m.status.replace("_", " ")}
             </span>
