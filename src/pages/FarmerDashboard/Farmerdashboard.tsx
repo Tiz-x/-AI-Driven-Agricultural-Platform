@@ -16,6 +16,7 @@ import { BsTruck } from "react-icons/bs";
 import { authService } from "../../services/authService";
 import { chatService } from '../../services/chatService';
 import type { ChatSession as ServiceChatSession } from '../../services/chatService';
+import PageLoader from '../../components/PageLoader/PageLoader';
 import styles from "./Farmerdashboard.module.css";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -159,7 +160,7 @@ export default function FarmerChat() {
     if (confirm('Delete this chat session?')) {
       try {
         await chatService.deleteSession(sessionId);
-        await loadSessions(); // Refresh the list
+        await loadSessions();
         if (activeId === sessionId) {
           startNewChat();
         }
@@ -185,7 +186,6 @@ export default function FarmerChat() {
     setTyping(true);
 
     try {
-      // Create session if none exists
       let sessionId = currentSessionId;
       if (!sessionId) {
         const { session } = await chatService.createSession(text.slice(0, 40));
@@ -194,10 +194,8 @@ export default function FarmerChat() {
         setActiveId(sessionId);
       }
       
-      // Save user message to database
       await chatService.saveMessage(sessionId, 'user', userMsg.text);
       
-      // Get AI response
       const aiText = await fetchAIResponse(text.trim());
       
       const aiMsg: Message = {
@@ -207,18 +205,14 @@ export default function FarmerChat() {
         time: nowTime(),
       };
       
-      // Save AI message to database
       await chatService.saveMessage(sessionId, 'ai', aiMsg.text);
       
-      // Update UI
       setMessages((prev) => {
         const updated = [...prev, aiMsg];
         
-        // Update or add session in the list
         setSessions((prevSessions) => {
           const existingIndex = prevSessions.findIndex(s => s.id === sessionId);
           if (existingIndex !== -1) {
-            // Update existing session
             const updatedSessions = [...prevSessions];
             updatedSessions[existingIndex] = {
               ...updatedSessions[existingIndex],
@@ -226,11 +220,9 @@ export default function FarmerChat() {
               preview: text,
               date: 'Today'
             };
-            // Move to top
             const [moved] = updatedSessions.splice(existingIndex, 1);
             return [moved, ...updatedSessions];
           } else {
-            // Create new session
             const newSession: ChatSession = {
               id: sessionId!,
               title: text.length > 40 ? text.slice(0, 40) + "…" : text,
@@ -269,15 +261,9 @@ export default function FarmerChat() {
 
   const isEmpty = messages.length === 0;
 
+  // Use your existing PageLoader component
   if (loading) {
-    return (
-      <div className={styles.shell}>
-        <div className={styles.loadingContainer}>
-          <div className={styles.loadingSpinner}></div>
-          <p>Loading your chats...</p>
-        </div>
-      </div>
-    );
+    return <PageLoader />;
   }
 
   return (
