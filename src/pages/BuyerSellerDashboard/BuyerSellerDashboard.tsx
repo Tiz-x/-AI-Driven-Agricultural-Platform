@@ -37,6 +37,7 @@ import {
   MdCancel,
   MdCameraAlt,
   MdSwapHoriz,
+  MdDeleteOutline,
 } from "react-icons/md";
 import { BsArrowRight } from "react-icons/bs";
 import { FaStore, FaSeedling } from "react-icons/fa";
@@ -1414,9 +1415,33 @@ function SectionMyStore({
   onRefresh: () => void;
 }) {
   const [selectedListing, setSelectedListing] = useState<Listing | null>(null);
-  const incomingRequests = listings
-    .flatMap((l) => l.requests || [])
-    .filter((r) => r.status === "pending");
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    show: boolean;
+    listingId: string | null;
+  }>({ show: false, listingId: null });
+  const { addToast } = useToast();
+
+  const handleDeleteClick = (listingId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteConfirm({ show: true, listingId });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm.listingId) return;
+
+    const result = await marketService.deleteListing(deleteConfirm.listingId);
+
+    if (result.success) {
+      addToast("Listing deleted successfully!", "success");
+      onRefresh();
+      if (selectedListing?.id === deleteConfirm.listingId) {
+        setSelectedListing(null);
+      }
+    } else {
+      addToast(result.error || "Failed to delete listing", "error");
+    }
+    setDeleteConfirm({ show: false, listingId: null });
+  };
 
   if (selectedListing) {
     return (
@@ -1432,7 +1457,6 @@ function SectionMyStore({
           onAccept={(r) => {
             marketService.acceptRequest(r.id);
             onRefresh();
-            setSelectedListing(null);
           }}
           onReject={(r) => {
             marketService.rejectRequest(r.id);
@@ -1459,21 +1483,24 @@ function SectionMyStore({
 
   return (
     <>
+      <ConfirmModal
+        isOpen={deleteConfirm.show}
+        title="Delete Listing"
+        message="⚠️ WARNING: This action cannot be undone. Are you sure you want to permanently delete this listing?"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirm({ show: false, listingId: null })}
+      />
+
       <div className={styles.pageHeader}>
         <div className={styles.pageTitle}>My Store</div>
         <div className={styles.pageSubtitle}>
-          {listings.length} active listings · {incomingRequests.length} pending
-          requests
+          {listings.length} active listings · Manage your produce
         </div>
       </div>
+
       <div className={styles.marketplaceGrid}>
         {listings.map((listing) => (
-          <div
-            key={listing.id}
-            className={styles.marketplaceCard}
-            style={{ cursor: "pointer" }}
-            onClick={() => setSelectedListing(listing)}
-          >
+          <div key={listing.id} className={styles.marketplaceCard}>
             <div className={styles.cardPhoto}>
               {listing.photoUrl ? (
                 <img src={listing.photoUrl} alt={listing.cropType} />
@@ -1489,6 +1516,14 @@ function SectionMyStore({
               >
                 {CROP_ICON[listing.cropType]} {listing.cropType}
               </div>
+              {/* Delete button */}
+              <button
+                className={styles.deleteListingBtn}
+                onClick={(e) => handleDeleteClick(listing.id, e)}
+                title="Delete listing"
+              >
+                <MdDeleteOutline size={18} />
+              </button>
             </div>
             <div className={styles.cardInfo}>
               <div className={styles.produceStats}>
@@ -1507,12 +1542,12 @@ function SectionMyStore({
                   <span className={styles.statLabel}>Pending</span>
                 </div>
               </div>
-              <div
-                className={styles.requestBtn}
-                style={{ background: "#f2f4ef", color: "#2d6a35" }}
+              <button
+                className={styles.viewRequestsBtn}
+                onClick={() => setSelectedListing(listing)}
               >
                 View Requests →
-              </div>
+              </button>
             </div>
           </div>
         ))}

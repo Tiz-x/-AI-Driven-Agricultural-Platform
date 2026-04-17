@@ -2245,3 +2245,47 @@ input:checked + .slider:before {
     align-self: flex-start;
   }
 }
+
+
+
+
+.deleteListingBtn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+  z-index: 10;
+}
+
+.deleteListingBtn:hover {
+  background: #dc3545;
+  transform: scale(1.05);
+}
+
+.viewRequestsBtn {
+  width: 100%;
+  padding: 10px;
+  background: var(--clr-lime-bg);
+  border: 1px solid var(--clr-lime-border);
+  border-radius: var(--r-md);
+  color: var(--clr-fern);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-top: 12px;
+}
+
+.viewRequestsBtn:hover {
+  background: var(--clr-lime);
+  color: white;
+}

@@ -258,6 +258,13 @@ export default function FarmerChat() {
     }
   };
 
+  const autoResize = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    setInput(textarea.value);
+  };
+
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -532,9 +539,10 @@ export default function FarmerChat() {
                   className={styles.inputField}
                   placeholder="Ask about your crops, harvest, soil, weather…"
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={autoResize}
                   onKeyDown={handleKey}
                   rows={1}
+                  wrap="soft" 
                 />
                 <button
                   className={`${styles.sendBtn} ${input.trim() ? styles.sendBtnActive : ""}`}

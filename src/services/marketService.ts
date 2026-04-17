@@ -1,5 +1,3 @@
-
-
 export type CropType = 'Maize' | 'Tomato' | 'Cassava' | 'Pepper'
 
 export const AKURE_AREAS = [
@@ -162,6 +160,30 @@ export const marketService = {
     }
   },
 
+  // ── DELETE LISTING ──────────────────────────────────────────
+  async deleteListing(listingId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const token = getToken();
+      if (!token) throw new Error('Not authenticated');
+
+      const res = await fetch(`${BASE_URL}/listings/${listingId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete listing');
+      
+      return { success: true };
+    } catch (error: any) {
+      console.error('Delete listing error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   // ── DEMAND / WAITLIST ─────────────────────────────────────
   async postDemand(data: {
     cropType: CropType
@@ -268,7 +290,7 @@ export const marketService = {
       return []
     }
   },
-
+  
   // ── NOTIFICATIONS (frontend in-memory) ───────────────────
   getNotifications(userId: string): Notification[] {
     return _notifications
