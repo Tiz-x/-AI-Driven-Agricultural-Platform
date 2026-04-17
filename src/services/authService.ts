@@ -5,7 +5,7 @@ import type {
 } from "../types/auth";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:5000/api";
-const MOCK_MODE = false; // now always use real backend
+const MOCK_MODE = false;
 
 /* ── Real API request ──────────────────────────────────── */
 async function request<T>(endpoint: string, options: RequestInit): Promise<T> {
@@ -18,6 +18,7 @@ async function request<T>(endpoint: string, options: RequestInit): Promise<T> {
     throw new Error(data.error ?? data.message ?? "Something went wrong");
   return data as T;
 }
+
 
 /* ── Auth Service ──────────────────────────────────────── */
 export const authService = {

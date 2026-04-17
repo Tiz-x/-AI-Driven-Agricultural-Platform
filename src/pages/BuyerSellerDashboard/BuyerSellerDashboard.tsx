@@ -1,5 +1,3 @@
-// src/pages/BuyerSellerDashboard/BuyerSellerDashboard.tsx
-
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -23,12 +21,6 @@ import {
   RiMailSendLine,
   RiImageAddLine,
   RiHomeSmileLine,
-  RiLockLine,
-  RiPaletteLine,
-  RiLockPasswordLine,
-  RiDeleteBinLine,
-  RiInformationLine,
-  RiShieldCheckLine,
 } from "react-icons/ri";
 import {
   GiCorn,
@@ -59,6 +51,10 @@ import {
   AKURE_AREAS,
 } from "../../services/marketService";
 import { authService } from "../../services/authService";
+import { roleService } from "../../services/roleService";
+import { useToast } from "../../context/ToastContext";
+import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
+import { CustomSelect } from "../../components/CustomSelect/CustomSelect";
 import FloatingAI from "../../components/FloatingAI/FloatingAI";
 import styles from "./BuyerSellerDashboard.module.css";
 
@@ -112,6 +108,7 @@ const getImageFallback = (cropType: CropType): string => {
 
 export default function BuyerSellerDashboard() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [user, setUser] = useState(
     authService.getUser() ?? {
       id: "mock-001",
@@ -152,10 +149,24 @@ export default function BuyerSellerDashboard() {
     type: "match" | "waitlist" | "requestSent";
     data: any;
   }>(null);
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    type: "delete" | "accept" | "reject";
+    data?: any;
+  }>({ show: false, type: "delete" });
 
   useEffect(() => {
     refresh();
+    ensureUserProfiles();
   }, []);
+
+  async function ensureUserProfiles() {
+    try {
+      await roleService.getCurrentRole();
+    } catch (error) {
+      console.error("Failed to ensure profiles:", error);
+    }
+  }
 
   async function refresh() {
     try {
@@ -173,6 +184,7 @@ export default function BuyerSellerDashboard() {
       setMyRequests([]);
     } catch (err) {
       console.error("Refresh error:", err);
+      addToast("Failed to refresh data", "error");
     }
   }
 
@@ -188,8 +200,9 @@ export default function BuyerSellerDashboard() {
     const qty = Number(requestQty);
     if (!showRequestModal) return;
     if (qty <= 0 || qty > showRequestModal.listing.remainingQty) {
-      alert(
+      addToast(
         `Please enter a valid quantity (max ${showRequestModal.listing.remainingQty}kg)`,
+        "error",
       );
       return;
     }
@@ -203,43 +216,40 @@ export default function BuyerSellerDashboard() {
     );
 
     if (!result.success) {
-      alert(result.error || "Failed to send request");
+      addToast(result.error || "Failed to send request", "error");
       return;
     }
 
     setShowRequestModal(null);
     setModal({ type: "requestSent", data: result.request });
     refresh();
+    addToast("Request sent successfully!", "success");
   };
 
   const handleAcceptRequest = async (request: Request) => {
-    if (
-      window.confirm(
-        `Accept ${request.buyerName}'s request for ${request.requestedQty}kg?`,
-      )
-    ) {
-      const result = await marketService.acceptRequest(
-        request.id,
-        user.location || "Ijapo Estate",
-      );
-      if (!result.success) {
-        alert(result.error || "Failed to accept request");
-        return;
-      }
-      refresh();
-    }
+    setConfirmModal({ show: true, type: "accept", data: request });
   };
 
   const handleRejectRequest = async (request: Request) => {
-    if (window.confirm(`Reject ${request.buyerName}'s request?`)) {
-      await marketService.rejectRequest(request.id);
-      refresh();
-    }
+    setConfirmModal({ show: true, type: "reject", data: request });
   };
 
   const handleLogout = () => {
     authService.clearSession();
     navigate("/login");
+    addToast("Logged out successfully", "success");
+  };
+
+  const switchToFarmer = async () => {
+    try {
+      const result = await roleService.switchToFarmer();
+      authService.setUser(result.user);
+      navigate("/farmer");
+      addToast("Switched to Farmer mode", "success");
+    } catch (error) {
+      console.error("Failed to switch to farmer:", error);
+      addToast("Could not switch to farmer mode", "error");
+    }
   };
 
   const filteredListings = listings.filter(
@@ -326,6 +336,44 @@ export default function BuyerSellerDashboard() {
 
   return (
     <div className={styles.shell}>
+      <ConfirmModal
+        isOpen={confirmModal.show}
+        title={
+          confirmModal.type === "delete"
+            ? "Delete Item"
+            : confirmModal.type === "accept"
+              ? "Accept Request"
+              : "Reject Request"
+        }
+        message={
+          confirmModal.type === "accept"
+            ? "Are you sure you want to accept this request?"
+            : confirmModal.type === "reject"
+              ? "Are you sure you want to reject this request?"
+              : "Are you sure you want to proceed?"
+        }
+        onConfirm={async () => {
+          if (confirmModal.type === "accept" && confirmModal.data) {
+            const result = await marketService.acceptRequest(
+              confirmModal.data.id,
+              user.location,
+            );
+            if (result.success) {
+              addToast("Request accepted successfully!", "success");
+              refresh();
+            } else {
+              addToast(result.error || "Failed to accept request", "error");
+            }
+          } else if (confirmModal.type === "reject" && confirmModal.data) {
+            await marketService.rejectRequest(confirmModal.data.id);
+            addToast("Request rejected", "info");
+            refresh();
+          }
+          setConfirmModal({ show: false, type: "delete" });
+        }}
+        onCancel={() => setConfirmModal({ show: false, type: "delete" })}
+      />
+
       <div
         className={`${styles.overlay} ${sidebarOpen ? styles.overlayVisible : ""}`}
         onClick={() => setSidebar(false)}
@@ -554,10 +602,7 @@ export default function BuyerSellerDashboard() {
 
         <div className={styles.switchBox}>
           <div className={styles.switchLbl}>Switch Role</div>
-          <button
-            className={styles.switchBtn}
-            onClick={() => navigate("/farmer")}
-          >
+          <button className={styles.switchBtn} onClick={switchToFarmer}>
             <MdSwapHoriz size={14} /> Go to Farmer Dashboard
           </button>
         </div>
@@ -583,7 +628,6 @@ export default function BuyerSellerDashboard() {
 
       {/* Main Content */}
       <div className={styles.main}>
-        {/* ── TOPBAR ── */}
         <div className={styles.topbar}>
           <div className={styles.topbarLeft}>
             <button
@@ -612,7 +656,6 @@ export default function BuyerSellerDashboard() {
             </div>
           </div>
 
-          {/* Agro AI pill */}
           <FloatingAI navbarMode />
 
           <div className={styles.topbarRight}>
@@ -648,6 +691,7 @@ export default function BuyerSellerDashboard() {
               onSuccess={() => {
                 refresh();
                 setSection("marketplace");
+                addToast("Listing posted successfully!", "success");
               }}
             />
           )}
@@ -677,6 +721,7 @@ export default function BuyerSellerDashboard() {
               onMarkAll={() => {
                 marketService.markAllRead(user.id);
                 refresh();
+                addToast("All notifications marked as read", "info");
               }}
             />
           )}
@@ -691,12 +736,12 @@ export default function BuyerSellerDashboard() {
                   localStorage.setItem("agf_user", JSON.stringify(currentUser));
                 }
                 refresh();
+                addToast("Profile updated successfully!", "success");
               }}
             />
           )}
         </div>
 
-        {/* Bottom Navigation */}
         <div className={styles.bottomNav}>
           <div className={styles.bottomNavItems}>
             {bottomNavItems.map((item) => (
@@ -724,6 +769,236 @@ export default function BuyerSellerDashboard() {
 }
 
 // ══════════════════════════════════════════════════════
+// POST LISTING SECTION (with CustomSelect)
+// ══════════════════════════════════════════════════════
+function SectionPostListing({
+  onSuccess,
+}: {
+  user: any;
+  onSuccess: () => void;
+}) {
+  const [form, setForm] = useState({
+    cropType: "Maize" as CropType,
+    quantity: "",
+    location: AKURE_AREAS[0],
+    description: "",
+    photoUrl: "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [imagePreview, setImagePreview] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { addToast } = useToast();
+
+  const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        addToast(
+          "Image is too large. Please choose an image under 5MB.",
+          "error",
+        );
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const b = reader.result as string;
+        setImagePreview(b);
+        setF("photoUrl", b);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const takePhoto = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.capture = "environment";
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const b = reader.result as string;
+          setImagePreview(b);
+          setF("photoUrl", b);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.quantity || Number(form.quantity) <= 0)
+      e.quantity = "Enter a valid quantity";
+    if (!form.description.trim()) e.description = "Add a short description";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setLoading(true);
+
+    const result = await marketService.postListing({
+      cropType: form.cropType,
+      quantity: Number(form.quantity),
+      location: form.location,
+      description: form.description,
+      photoUrl: form.photoUrl || undefined,
+    });
+
+    if (!result.success) {
+      addToast(result.error || "Failed to post listing", "error");
+      setLoading(false);
+      return;
+    }
+    setLoading(false);
+    onSuccess();
+  };
+
+  return (
+    <div className={styles.formCard}>
+      <div className={styles.formTitle}>List Your Produce</div>
+      <div className={styles.formSubtitle}>
+        Post what you have available. Buyers in Akure will see it instantly.
+      </div>
+      <form onSubmit={handleSubmit} noValidate>
+        <div className={styles.formFields}>
+          <div className={styles.fieldRow}>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Crop Type</label>
+              <CustomSelect
+                options={CROPS.map((crop) => ({ value: crop, label: crop }))}
+                value={form.cropType}
+                onChange={(value) => setF("cropType", value)}
+                placeholder="Select crop type"
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Location (Akure)</label>
+              <CustomSelect
+                options={AKURE_AREAS.map((area) => ({
+                  value: area,
+                  label: area,
+                }))}
+                value={form.location}
+                onChange={(value) => setF("location", value)}
+                placeholder="Select location"
+              />
+            </div>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Available Quantity (kg)</label>
+            <input
+              className={styles.fieldInput}
+              type="number"
+              placeholder="e.g. 500"
+              min={1}
+              value={form.quantity}
+              onChange={(e) => setF("quantity", e.target.value)}
+            />
+            {errors.quantity && (
+              <span className={styles.fieldErrMsg}>{errors.quantity}</span>
+            )}
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Product Photo</label>
+            <div className={styles.photoUploadArea}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  justifyContent: "center",
+                  marginBottom: 12,
+                }}
+              >
+                <button
+                  type="button"
+                  className={styles.photoUploadBtn}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <RiImageAddLine size={20} /> Choose from Gallery
+                </button>
+                <button
+                  type="button"
+                  className={styles.photoUploadBtn}
+                  onClick={takePhoto}
+                >
+                  <MdCameraAlt size={18} /> Take Photo
+                </button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleImageSelect}
+              />
+              <div
+                style={{ fontSize: 12, color: "#9ead9f", textAlign: "center" }}
+              >
+                Upload a clear photo of your produce (max 5MB)
+              </div>
+              {imagePreview && (
+                <div className={styles.imagePreviewContainer}>
+                  <img
+                    src={imagePreview}
+                    className={styles.photoPreview}
+                    alt="Preview"
+                  />
+                  <button
+                    type="button"
+                    className={styles.removePhotoBtn}
+                    onClick={() => {
+                      setImagePreview("");
+                      setF("photoUrl", "");
+                    }}
+                  >
+                    ✕ Remove
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Description</label>
+            <textarea
+              className={styles.fieldTextarea}
+              placeholder="Describe your produce — quality, harvest date, packaging..."
+              value={form.description}
+              onChange={(e) => setF("description", e.target.value)}
+            />
+            {errors.description && (
+              <span className={styles.fieldErrMsg}>{errors.description}</span>
+            )}
+          </div>
+          <button
+            className={styles.formSubmitBtn}
+            type="submit"
+            disabled={loading}
+          >
+            {loading ? (
+              <> Posting...</>
+            ) : (
+              <>
+                Post Listing <BsArrowRight size={14} />
+              </>
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════
 // SETTINGS SECTION
 // ══════════════════════════════════════════════════════
 function SectionSettings({
@@ -731,25 +1006,8 @@ function SectionSettings({
   onUpdate,
 }: {
   user: any;
-  onUpdate: (user: any) => void;
+  onUpdate: (updatedUser: any) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<
-    | "profile"
-    | "notifications"
-    | "privacy"
-    | "appearance"
-    | "security"
-    | "about"
-  >("profile");
-  const [saving, setSaving] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [passwordData, setPasswordData] = useState({
-    current: "",
-    new: "",
-    confirm: "",
-  });
-
   const [profileForm, setProfileForm] = useState({
     fullName: user.name || "",
     email: user.email || "",
@@ -757,126 +1015,16 @@ function SectionSettings({
     location: user.location || "Ijapo Estate, Akure",
     bio: user.bio || "Agricultural entrepreneur passionate about fresh produce",
   });
-
-  const [notifSettings, setNotifSettings] = useState({
-    emailAlerts: true,
-    smsAlerts: true,
-    pushNotifications: true,
-    matchAlerts: true,
-    requestAlerts: true,
-    newsletter: false,
-    marketingEmails: false,
-  });
-
-  const [privacySettings, setPrivacySettings] = useState({
-    showPhoneNumber: true,
-    showEmail: false,
-    showLocation: true,
-    allowMessages: true,
-    showInSearch: true,
-    dataSharing: false,
-  });
-
-  const [appearanceSettings, setAppearanceSettings] = useState({
-    darkMode: false,
-    compactView: false,
-    language: "English",
-    fontSize: "medium",
-  });
+  const [saving, setSaving] = useState(false);
+  const { addToast } = useToast();
 
   const handleProfileUpdate = async () => {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 800));
     onUpdate({ ...user, ...profileForm });
     setSaving(false);
-    alert("Profile updated successfully!");
+    addToast("Profile updated successfully!", "success");
   };
-
-  const handlePasswordChange = async () => {
-    if (passwordData.new !== passwordData.confirm) {
-      alert("New passwords do not match!");
-      return;
-    }
-    if (passwordData.new.length < 6) {
-      alert("Password must be at least 6 characters");
-      return;
-    }
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setShowPasswordModal(false);
-    setPasswordData({ current: "", new: "", confirm: "" });
-    setSaving(false);
-    alert("Password changed successfully!");
-  };
-
-  const handleDeleteAccount = async () => {
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setShowDeleteModal(false);
-    setSaving(false);
-    alert(
-      "Account deletion request submitted. You will receive a confirmation email.",
-    );
-  };
-
-  const handleNotifUpdate = async () => {
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
-    setSaving(false);
-    alert("Notification settings saved!");
-  };
-  const handlePrivacyUpdate = async () => {
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
-    setSaving(false);
-    alert("Privacy settings saved!");
-  };
-  const handleAppearanceUpdate = async () => {
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 500));
-    if (appearanceSettings.darkMode) document.body.classList.add("dark-mode");
-    else document.body.classList.remove("dark-mode");
-    setSaving(false);
-    alert("Appearance settings saved!");
-  };
-
-  const tabs = [
-    { id: "profile", label: "Profile", icon: <RiUserLine size={16} /> },
-    {
-      id: "notifications",
-      label: "Notifications",
-      icon: <RiBellLine size={16} />,
-    },
-    { id: "privacy", label: "Privacy", icon: <RiLockLine size={16} /> },
-    {
-      id: "appearance",
-      label: "Appearance",
-      icon: <RiPaletteLine size={16} />,
-    },
-    {
-      id: "security",
-      label: "Security",
-      icon: <RiShieldCheckLine size={16} />,
-    },
-    { id: "about", label: "About", icon: <RiInformationLine size={16} /> },
-  ];
-
-  const Toggle = ({
-    checked,
-    onChange,
-  }: {
-    checked: boolean;
-    onChange: (v: boolean) => void;
-  }) => (
-    <label className={styles.switch}>
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
-      <span className={styles.slider}></span>
-    </label>
-  );
 
   return (
     <div className={styles.settingsContainer}>
@@ -887,431 +1035,213 @@ function SectionSettings({
         </div>
       </div>
 
-      <div className={styles.settingsTabs}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            className={`${styles.settingsTab} ${activeTab === tab.id ? styles.settingsTabActive : ""}`}
-            onClick={() => setActiveTab(tab.id as any)}
-          >
-            {tab.icon} {tab.label}
-          </button>
-        ))}
+      <div className={styles.settingsCard}>
+        <div className={styles.settingsSection}>
+          <h3 className={styles.settingsSectionTitle}>Personal Information</h3>
+          <div className={styles.formFields}>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Full Name</label>
+              <input
+                type="text"
+                className={styles.fieldInput}
+                value={profileForm.fullName}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, fullName: e.target.value })
+                }
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Email Address</label>
+              <input
+                type="email"
+                className={styles.fieldInput}
+                value={profileForm.email}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, email: e.target.value })
+                }
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Phone Number</label>
+              <input
+                type="tel"
+                className={styles.fieldInput}
+                value={profileForm.phone}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, phone: e.target.value })
+                }
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Location</label>
+              <input
+                type="text"
+                className={styles.fieldInput}
+                value={profileForm.location}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, location: e.target.value })
+                }
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Bio</label>
+              <textarea
+                className={styles.fieldTextarea}
+                rows={3}
+                value={profileForm.bio}
+                onChange={(e) =>
+                  setProfileForm({ ...profileForm, bio: e.target.value })
+                }
+                placeholder="Tell buyers a little about yourself..."
+              />
+            </div>
+            <button
+              className={styles.saveBtn}
+              onClick={handleProfileUpdate}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
       </div>
+    </div>
+  );
+}
 
-      {activeTab === "profile" && (
-        <div className={styles.settingsCard}>
-          <div className={styles.settingsSection}>
-            <h3 className={styles.settingsSectionTitle}>
-              Personal Information
-            </h3>
-            <div className={styles.formFields}>
-              {[
-                { label: "Full Name", key: "fullName", type: "text" },
-                { label: "Email Address", key: "email", type: "email" },
-                { label: "Phone Number", key: "phone", type: "tel" },
-                { label: "Location", key: "location", type: "text" },
-              ].map(({ label, key, type }) => (
-                <div className={styles.fieldGroup} key={key}>
-                  <label className={styles.fieldLabel}>{label}</label>
-                  <input
-                    type={type}
-                    className={styles.fieldInput}
-                    value={(profileForm as any)[key]}
-                    onChange={(e) =>
-                      setProfileForm({ ...profileForm, [key]: e.target.value })
-                    }
-                  />
-                </div>
-              ))}
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Bio</label>
-                <textarea
-                  className={styles.fieldTextarea}
-                  rows={3}
-                  value={profileForm.bio}
-                  onChange={(e) =>
-                    setProfileForm({ ...profileForm, bio: e.target.value })
-                  }
-                  placeholder="Tell buyers a little about yourself..."
-                />
-              </div>
-              <button
-                className={styles.saveBtn}
-                onClick={handleProfileUpdate}
-                disabled={saving}
-              >
-                {saving ? <div className={styles.spinner} /> : "Save Changes"}
-              </button>
+// ══════════════════════════════════════════════════════
+// POST DEMAND SECTION
+// ══════════════════════════════════════════════════════
+function SectionPostDemand({
+  onResult,
+}: {
+  user: any;
+  onResult: (r: any) => void;
+}) {
+  const [form, setForm] = useState({
+    cropType: "Maize" as CropType,
+    quantity: "",
+    location: AKURE_AREAS[0],
+  });
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { addToast } = useToast();
+
+  const setF = (k: string, v: string) =>
+    setForm((prev) => ({ ...prev, [k]: v }));
+
+  const validate = () => {
+    const e: Record<string, string> = {};
+    if (!form.quantity || Number(form.quantity) <= 0) {
+      e.quantity = "Enter a valid quantity";
+    }
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setLoading(true);
+
+    const result = await marketService.postDemand({
+      cropType: form.cropType,
+      quantity: Number(form.quantity),
+      location: form.location,
+    });
+
+    setLoading(false);
+
+    if (result.matched) {
+      addToast("Match found! Check your matches section.", "success");
+    } else {
+      addToast(
+        "Added to waitlist. We'll notify you when a seller is found.",
+        "info",
+      );
+    }
+
+    onResult(result);
+  };
+
+  return (
+    <div className={styles.formCard}>
+      <div className={styles.formTitle}>Post a Demand</div>
+      <div className={styles.formSubtitle}>
+        Tell us what you need. Our system will find the closest seller in Akure.
+      </div>
+      <form onSubmit={handleSubmit} noValidate>
+        <div className={styles.formFields}>
+          <div className={styles.fieldRow}>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Crop Type</label>
+              <CustomSelect
+                options={CROPS.map((crop) => ({ value: crop, label: crop }))}
+                value={form.cropType}
+                onChange={(value) => setF("cropType", value)}
+                placeholder="Select crop type"
+              />
+            </div>
+            <div className={styles.fieldGroup}>
+              <label className={styles.fieldLabel}>Your Location (Akure)</label>
+              <CustomSelect
+                options={AKURE_AREAS.map((area) => ({
+                  value: area,
+                  label: area,
+                }))}
+                value={form.location}
+                onChange={(value) => setF("location", value)}
+                placeholder="Select location"
+              />
             </div>
           </div>
-        </div>
-      )}
-
-      {activeTab === "notifications" && (
-        <div className={styles.settingsCard}>
-          <div className={styles.settingsSection}>
-            <h3 className={styles.settingsSectionTitle}>
-              Notification Preferences
-            </h3>
-            <div className={styles.toggleList}>
-              {[
-                {
-                  label: "Email Alerts",
-                  desc: "Receive email notifications about matches and requests",
-                  key: "emailAlerts",
-                },
-                {
-                  label: "SMS Alerts",
-                  desc: "Get text messages for urgent updates",
-                  key: "smsAlerts",
-                },
-                {
-                  label: "Push Notifications",
-                  desc: "In-app notifications for activity",
-                  key: "pushNotifications",
-                },
-                {
-                  label: "Match Alerts",
-                  desc: "Notify when you get a new match",
-                  key: "matchAlerts",
-                },
-                {
-                  label: "Marketing Emails",
-                  desc: "Receive promotions and updates",
-                  key: "marketingEmails",
-                },
-              ].map(({ label, desc, key }) => (
-                <div className={styles.toggleItem} key={key}>
-                  <div>
-                    <div className={styles.toggleLabel}>{label}</div>
-                    <div className={styles.toggleDesc}>{desc}</div>
-                  </div>
-                  <Toggle
-                    checked={(notifSettings as any)[key]}
-                    onChange={(v) =>
-                      setNotifSettings({ ...notifSettings, [key]: v })
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-            <button
-              className={styles.saveBtn}
-              onClick={handleNotifUpdate}
-              disabled={saving}
-            >
-              {saving ? <div className={styles.spinner} /> : "Save Preferences"}
-            </button>
+          <div className={styles.fieldGroup}>
+            <label className={styles.fieldLabel}>Quantity Needed (kg)</label>
+            <input
+              className={styles.fieldInput}
+              type="number"
+              placeholder="e.g. 200"
+              min={1}
+              value={form.quantity}
+              onChange={(e) => setF("quantity", e.target.value)}
+            />
+            {errors.quantity && (
+              <span className={styles.fieldErrMsg}>{errors.quantity}</span>
+            )}
           </div>
-        </div>
-      )}
-
-      {activeTab === "privacy" && (
-        <div className={styles.settingsCard}>
-          <div className={styles.settingsSection}>
-            <h3 className={styles.settingsSectionTitle}>Privacy Controls</h3>
-            <div className={styles.toggleList}>
-              {[
-                {
-                  label: "Show Phone Number",
-                  desc: "Let buyers see your phone number",
-                  key: "showPhoneNumber",
-                },
-                {
-                  label: "Show Email",
-                  desc: "Display email on your profile",
-                  key: "showEmail",
-                },
-                {
-                  label: "Show Location",
-                  desc: "Share your general location",
-                  key: "showLocation",
-                },
-                {
-                  label: "Allow Direct Messages",
-                  desc: "Let others message you directly",
-                  key: "allowMessages",
-                },
-                {
-                  label: "Show in Search",
-                  desc: "Appear in marketplace searches",
-                  key: "showInSearch",
-                },
-              ].map(({ label, desc, key }) => (
-                <div className={styles.toggleItem} key={key}>
-                  <div>
-                    <div className={styles.toggleLabel}>{label}</div>
-                    <div className={styles.toggleDesc}>{desc}</div>
-                  </div>
-                  <Toggle
-                    checked={(privacySettings as any)[key]}
-                    onChange={(v) =>
-                      setPrivacySettings({ ...privacySettings, [key]: v })
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-            <button
-              className={styles.saveBtn}
-              onClick={handlePrivacyUpdate}
-              disabled={saving}
-            >
-              {saving ? (
-                <div className={styles.spinner} />
-              ) : (
-                "Save Privacy Settings"
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "appearance" && (
-        <div className={styles.settingsCard}>
-          <div className={styles.settingsSection}>
-            <h3 className={styles.settingsSectionTitle}>Appearance</h3>
-            <div className={styles.toggleList}>
-              {[
-                {
-                  label: "Dark Mode",
-                  desc: "Switch to dark theme",
-                  key: "darkMode",
-                },
-                {
-                  label: "Compact View",
-                  desc: "Show more items per page",
-                  key: "compactView",
-                },
-              ].map(({ label, desc, key }) => (
-                <div className={styles.toggleItem} key={key}>
-                  <div>
-                    <div className={styles.toggleLabel}>{label}</div>
-                    <div className={styles.toggleDesc}>{desc}</div>
-                  </div>
-                  <Toggle
-                    checked={(appearanceSettings as any)[key]}
-                    onChange={(v) =>
-                      setAppearanceSettings({ ...appearanceSettings, [key]: v })
-                    }
-                  />
-                </div>
-              ))}
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Language</label>
-                <select
-                  className={styles.fieldSelect}
-                  value={appearanceSettings.language}
-                  onChange={(e) =>
-                    setAppearanceSettings({
-                      ...appearanceSettings,
-                      language: e.target.value,
-                    })
-                  }
-                >
-                  {["English", "Yoruba", "Hausa", "Igbo", "French"].map((l) => (
-                    <option key={l}>{l}</option>
-                  ))}
-                </select>
-              </div>
-              <div className={styles.fieldGroup}>
-                <label className={styles.fieldLabel}>Font Size</label>
-                <select
-                  className={styles.fieldSelect}
-                  value={appearanceSettings.fontSize}
-                  onChange={(e) =>
-                    setAppearanceSettings({
-                      ...appearanceSettings,
-                      fontSize: e.target.value,
-                    })
-                  }
-                >
-                  {["small", "medium", "large"].map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <button
-              className={styles.saveBtn}
-              onClick={handleAppearanceUpdate}
-              disabled={saving}
-            >
-              {saving ? <div className={styles.spinner} /> : "Save Appearance"}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "security" && (
-        <div className={styles.settingsCard}>
-          <div className={styles.settingsSection}>
-            <h3 className={styles.settingsSectionTitle}>Security</h3>
-            <div className={styles.securityOptions}>
-              <div
-                className={styles.securityOption}
-                onClick={() => setShowPasswordModal(true)}
-              >
-                <div>
-                  <div className={styles.toggleLabel}>Change Password</div>
-                  <div className={styles.toggleDesc}>
-                    Update your account password
-                  </div>
-                </div>
-                <RiLockPasswordLine size={20} color="#a8d832" />
-              </div>
-              <div
-                className={styles.securityOption}
-                onClick={() => alert("Two-factor authentication coming soon!")}
-              >
-                <div>
-                  <div className={styles.toggleLabel}>
-                    Two-Factor Authentication
-                  </div>
-                  <div className={styles.toggleDesc}>
-                    Add an extra layer of security
-                  </div>
-                </div>
-                <RiShieldCheckLine size={20} color="#9ead9f" />
-              </div>
-              <div
-                className={`${styles.securityOption} ${styles.dangerOption}`}
-                onClick={() => setShowDeleteModal(true)}
-              >
-                <div>
-                  <div className={styles.toggleLabel}>Delete Account</div>
-                  <div className={styles.toggleDesc}>
-                    Permanently delete your account and all data
-                  </div>
-                </div>
-                <RiDeleteBinLine size={20} color="#e05252" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeTab === "about" && (
-        <div className={styles.settingsCard}>
-          <div className={styles.settingsSection}>
-            <h3 className={styles.settingsSectionTitle}>About AgroFlow+</h3>
-            <div className={styles.aboutContent}>
-              <div className={styles.aboutVersion}>
-                <RiLeafFill size={24} color="#a8d832" />
-                <div>
-                  <div className={styles.toggleLabel}>Version 2.0.0</div>
-                  <div className={styles.toggleDesc}>
-                    Latest update: April 2026
-                  </div>
-                </div>
-              </div>
-              <div className={styles.aboutLinks}>
-                <a href="#">Terms of Service</a>
-                <a href="#">Privacy Policy</a>
-                <a href="#">Cookie Policy</a>
-                <a href="#">Contact Support</a>
-              </div>
-              <div className={styles.aboutCopyright}>
-                © 2026 AgroFlow+. All rights reserved.
-                <br />
-                Connecting farmers, buyers, and sellers across Nigeria.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showPasswordModal && (
-        <div
-          className={styles.modalOverlay}
-          onClick={() => setShowPasswordModal(false)}
-        >
           <div
-            className={styles.modal}
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: 450 }}
+            style={{
+              background: "#f2f9e4",
+              border: "1px solid rgba(168,216,50,0.3)",
+              borderRadius: 10,
+              padding: "12px 14px",
+              fontSize: 13,
+              color: "#2d6a35",
+              fontWeight: 600,
+            }}
           >
-            <div className={styles.modalIcon} style={{ background: "#f2f9e4" }}>
-              <RiLockPasswordLine size={32} color="#2d6a35" />
-            </div>
-            <div className={styles.modalTitle}>Change Password</div>
-            <div className={styles.formFields}>
-              {[
-                { label: "Current Password", key: "current" },
-                { label: "New Password", key: "new" },
-                { label: "Confirm New Password", key: "confirm" },
-              ].map(({ label, key }) => (
-                <div className={styles.fieldGroup} key={key}>
-                  <label className={styles.fieldLabel}>{label}</label>
-                  <input
-                    type="password"
-                    className={styles.fieldInput}
-                    value={(passwordData as any)[key]}
-                    onChange={(e) =>
-                      setPasswordData({
-                        ...passwordData,
-                        [key]: e.target.value,
-                      })
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-            <div className={styles.modalBtns}>
-              <button
-                className={styles.modalBtnPrimary}
-                onClick={handlePasswordChange}
-              >
-                Update Password
-              </button>
-              <button
-                className={styles.modalBtnOutline}
-                onClick={() => setShowPasswordModal(false)}
-              >
-                Cancel
-              </button>
-            </div>
+            <RiSeedlingLine
+              size={16}
+              style={{ display: "inline", marginRight: 8 }}
+            />
+            Our system will check available sellers in Akure and match you by
+            closest location first.
           </div>
-        </div>
-      )}
-
-      {showDeleteModal && (
-        <div
-          className={styles.modalOverlay}
-          onClick={() => setShowDeleteModal(false)}
-        >
-          <div
-            className={styles.modal}
-            onClick={(e) => e.stopPropagation()}
-            style={{ maxWidth: 450 }}
+          <button
+            className={styles.formSubmitBtn}
+            type="submit"
+            disabled={loading}
           >
-            <div className={styles.modalIcon} style={{ background: "#fee" }}>
-              <RiDeleteBinLine size={32} color="#e05252" />
-            </div>
-            <div className={styles.modalTitle}>Delete Account?</div>
-            <div className={styles.modalText}>
-              This action cannot be undone. All your listings, matches, and data
-              will be permanently deleted.
-            </div>
-            <div className={styles.modalBtns}>
-              <button
-                className={styles.modalBtnPrimary}
-                style={{ background: "#e05252" }}
-                onClick={handleDeleteAccount}
-              >
-                Yes, Delete
-              </button>
-              <button
-                className={styles.modalBtnOutline}
-                onClick={() => setShowDeleteModal(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+            {loading ? (
+              <> Finding matches...</>
+            ) : (
+              <>
+                Find a Match <BsArrowRight size={14} />
+              </>
+            )}
+          </button>
         </div>
-      )}
+      </form>
     </div>
   );
 }
@@ -1588,364 +1518,6 @@ function SectionMyStore({
         ))}
       </div>
     </>
-  );
-}
-
-// ══════════════════════════════════════════════════════
-// POST LISTING SECTION
-// ══════════════════════════════════════════════════════
-function SectionPostListing({
-  onSuccess,
-}: {
-  user: any;
-  onSuccess: () => void;
-}) {
-  const [form, setForm] = useState({
-    cropType: "Maize" as CropType,
-    quantity: "",
-    location: AKURE_AREAS[0],
-    description: "",
-    photoUrl: "",
-  });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [imagePreview, setImagePreview] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert("Image is too large. Please choose an image under 5MB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const b = reader.result as string;
-        setImagePreview(b);
-        setF("photoUrl", b);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const takePhoto = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.capture = "environment";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const b = reader.result as string;
-          setImagePreview(b);
-          setF("photoUrl", b);
-        };
-        reader.readAsDataURL(file);
-      }
-    };
-    input.click();
-  };
-
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!form.quantity || Number(form.quantity) <= 0)
-      e.quantity = "Enter a valid quantity";
-    if (!form.description.trim()) e.description = "Add a short description";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 700));
-    const result = await marketService.postListing({
-      cropType: form.cropType,
-      quantity: Number(form.quantity),
-      location: form.location,
-      description: form.description,
-      photoUrl: form.photoUrl || undefined,
-    });
-
-    if (!result.success) {
-      alert(result.error || "Failed to post listing");
-      setLoading(false);
-      return;
-    }
-    setLoading(false);
-    onSuccess();
-  };
-
-  return (
-    <div className={styles.formCard}>
-      <div className={styles.formTitle}>List Your Produce</div>
-      <div className={styles.formSubtitle}>
-        Post what you have available. Buyers in Akure will see it instantly.
-      </div>
-      <form onSubmit={handleSubmit} noValidate>
-        <div className={styles.formFields}>
-          <div className={styles.fieldRow}>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Crop Type</label>
-              <select
-                className={styles.fieldSelect}
-                value={form.cropType}
-                onChange={(e) => setF("cropType", e.target.value)}
-              >
-                {CROPS.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Location (Akure)</label>
-              <select
-                className={styles.fieldSelect}
-                value={form.location}
-                onChange={(e) => setF("location", e.target.value)}
-              >
-                {AKURE_AREAS.map((a) => (
-                  <option key={a}>{a}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Available Quantity (kg)</label>
-            <input
-              className={styles.fieldInput}
-              type="number"
-              placeholder="e.g. 500"
-              min={1}
-              value={form.quantity}
-              onChange={(e) => setF("quantity", e.target.value)}
-            />
-            {errors.quantity && (
-              <span className={styles.fieldErrMsg}>{errors.quantity}</span>
-            )}
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Product Photo</label>
-            <div className={styles.photoUploadArea}>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  justifyContent: "center",
-                  marginBottom: 12,
-                }}
-              >
-                <button
-                  type="button"
-                  className={styles.photoUploadBtn}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <RiImageAddLine size={20} /> Choose from Gallery
-                </button>
-                <button
-                  type="button"
-                  className={styles.photoUploadBtn}
-                  onClick={takePhoto}
-                >
-                  <MdCameraAlt size={18} /> Take Photo
-                </button>
-              </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                style={{ display: "none" }}
-                onChange={handleImageSelect}
-              />
-              <div
-                style={{ fontSize: 12, color: "#9ead9f", textAlign: "center" }}
-              >
-                Upload a clear photo of your produce (max 5MB)
-              </div>
-              {imagePreview && (
-                <div className={styles.imagePreviewContainer}>
-                  <img
-                    src={imagePreview}
-                    className={styles.photoPreview}
-                    alt="Preview"
-                  />
-                  <button
-                    type="button"
-                    className={styles.removePhotoBtn}
-                    onClick={() => {
-                      setImagePreview("");
-                      setF("photoUrl", "");
-                    }}
-                  >
-                    ✕ Remove
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Description</label>
-            <textarea
-              className={styles.fieldTextarea}
-              placeholder="Describe your produce — quality, harvest date, packaging..."
-              value={form.description}
-              onChange={(e) => setF("description", e.target.value)}
-            />
-            {errors.description && (
-              <span className={styles.fieldErrMsg}>{errors.description}</span>
-            )}
-          </div>
-          <button
-            className={styles.formSubmitBtn}
-            type="submit"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <div className={styles.spinner} /> Posting...
-              </>
-            ) : (
-              <>
-                Post Listing <BsArrowRight size={14} />
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-// ══════════════════════════════════════════════════════
-// POST DEMAND SECTION
-// ══════════════════════════════════════════════════════
-function SectionPostDemand({
-  onResult,
-}: {
-  user: any;
-  onResult: (r: any) => void;
-}) {
-  const [form, setForm] = useState({
-    cropType: "Maize" as CropType,
-    quantity: "",
-    location: AKURE_AREAS[0],
-  });
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const setF = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }));
-
-  const validate = () => {
-    const e: Record<string, string> = {};
-    if (!form.quantity || Number(form.quantity) <= 0)
-      e.quantity = "Enter a valid quantity";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) return;
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 900));
-    const result = await marketService.postDemand({
-      cropType: form.cropType,
-      quantity: Number(form.quantity),
-      location: form.location,
-    });
-    setLoading(false);
-    onResult(result);
-  };
-
-  return (
-    <div className={styles.formCard}>
-      <div className={styles.formTitle}>Post a Demand</div>
-      <div className={styles.formSubtitle}>
-        Tell us what you need. Our system will find the closest seller in Akure.
-      </div>
-      <form onSubmit={handleSubmit} noValidate>
-        <div className={styles.formFields}>
-          <div className={styles.fieldRow}>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Crop Type</label>
-              <select
-                className={styles.fieldSelect}
-                value={form.cropType}
-                onChange={(e) => setF("cropType", e.target.value)}
-              >
-                {CROPS.map((c) => (
-                  <option key={c}>{c}</option>
-                ))}
-              </select>
-            </div>
-            <div className={styles.fieldGroup}>
-              <label className={styles.fieldLabel}>Your Location (Akure)</label>
-              <select
-                className={styles.fieldSelect}
-                value={form.location}
-                onChange={(e) => setF("location", e.target.value)}
-              >
-                {AKURE_AREAS.map((a) => (
-                  <option key={a}>{a}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Quantity Needed (kg)</label>
-            <input
-              className={styles.fieldInput}
-              type="number"
-              placeholder="e.g. 200"
-              min={1}
-              value={form.quantity}
-              onChange={(e) => setF("quantity", e.target.value)}
-            />
-            {errors.quantity && (
-              <span className={styles.fieldErrMsg}>{errors.quantity}</span>
-            )}
-          </div>
-          <div
-            style={{
-              background: "#f2f9e4",
-              border: "1px solid rgba(168,216,50,0.3)",
-              borderRadius: 10,
-              padding: "12px 14px",
-              fontSize: 13,
-              color: "#2d6a35",
-              fontWeight: 600,
-            }}
-          >
-            <RiSeedlingLine
-              size={16}
-              style={{ display: "inline", marginRight: 8 }}
-            />
-            Our system will check available sellers in Akure and match you by
-            closest location first.
-          </div>
-          <button
-            className={styles.formSubmitBtn}
-            type="submit"
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <div className={styles.spinner} /> Finding matches...
-              </>
-            ) : (
-              <>
-                Find a Match <BsArrowRight size={14} />
-              </>
-            )}
-          </button>
-        </div>
-      </form>
-    </div>
   );
 }
 

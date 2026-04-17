@@ -16,6 +16,8 @@ import { BsTruck } from "react-icons/bs";
 import { authService } from "../../services/authService";
 import { chatService } from '../../services/chatService';
 import type { ChatSession as ServiceChatSession } from '../../services/chatService';
+import { useToast } from '../../context/ToastContext';
+import { ConfirmModal } from '../../components/ConfirmModal/ConfirmModal';
 import PageLoader from '../../components/PageLoader/PageLoader';
 import styles from "./Farmerdashboard.module.css";
 
@@ -73,6 +75,7 @@ function nowTime() {
 
 export default function FarmerChat() {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -82,6 +85,7 @@ export default function FarmerChat() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeSection, setSection] = useState<"chat" | "profile">("chat");
   const [loading, setLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; sessionId: string | null }>({ show: false, sessionId: null });
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -100,7 +104,6 @@ export default function FarmerChat() {
     loadSessions();
   }, []);
 
-  // Load all chat sessions from database
   const loadSessions = async () => {
     try {
       setLoading(true);
@@ -121,7 +124,6 @@ export default function FarmerChat() {
       
       setSessions(loadedSessions);
       
-      // Load the most recent session if exists
       if (loadedSessions.length > 0) {
         const mostRecent = loadedSessions[0];
         setActiveId(mostRecent.id);
@@ -130,12 +132,12 @@ export default function FarmerChat() {
       }
     } catch (error) {
       console.error('Failed to load sessions:', error);
+      addToast('Failed to load chat history', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Start a new chat
   const startNewChat = async () => {
     setActiveId(null);
     setCurrentSessionId(null);
@@ -145,7 +147,6 @@ export default function FarmerChat() {
     setSection("chat");
   };
 
-  // Load an existing session
   const loadSession = (s: ChatSession) => {
     setActiveId(s.id);
     setCurrentSessionId(s.id);
@@ -154,23 +155,27 @@ export default function FarmerChat() {
     setSection("chat");
   };
 
-  // Delete a session
-  const deleteSession = async (sessionId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirm('Delete this chat session?')) {
-      try {
-        await chatService.deleteSession(sessionId);
-        await loadSessions();
-        if (activeId === sessionId) {
-          startNewChat();
-        }
-      } catch (error) {
-        console.error('Failed to delete session:', error);
+  const handleDeleteClick = (sessionId: string) => {
+    setDeleteConfirm({ show: true, sessionId });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm.sessionId) return;
+    try {
+      await chatService.deleteSession(deleteConfirm.sessionId);
+      await loadSessions();
+      if (activeId === deleteConfirm.sessionId) {
+        startNewChat();
       }
+      addToast('Chat deleted successfully', 'success');
+    } catch (error) {
+      console.error('Failed to delete session:', error);
+      addToast('Failed to delete chat', 'error');
+    } finally {
+      setDeleteConfirm({ show: false, sessionId: null });
     }
   };
 
-  // Send message
   const send = async (text: string) => {
     if (!text.trim() || typing) return;
 
@@ -246,6 +251,7 @@ export default function FarmerChat() {
         time: nowTime(),
       };
       setMessages((prev) => [...prev, errMsg]);
+      addToast(err.message || 'Failed to send message', 'error');
     } finally {
       setTyping(false);
       inputRef.current?.focus();
@@ -259,20 +265,40 @@ export default function FarmerChat() {
     }
   };
 
+  const switchToBuyerSeller = async () => {
+    try {
+      navigate("/buyer");
+    } catch (error) {
+      addToast('Failed to switch role', 'error');
+    }
+  };
+
+  const handleLogout = () => {
+    authService.clearSession();
+    navigate("/login");
+    addToast('Logged out successfully', 'success');
+  };
+
   const isEmpty = messages.length === 0;
 
-  // Use your existing PageLoader component
   if (loading) {
     return <PageLoader />;
   }
 
   return (
     <div className={styles.shell}>
+      <ConfirmModal
+        isOpen={deleteConfirm.show}
+        title="Delete Chat"
+        message="Are you sure you want to delete this chat? This action cannot be undone."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteConfirm({ show: false, sessionId: null })}
+      />
+
       {sidebarOpen && (
         <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* ── SIDEBAR ── */}
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ""}`}>
         <div className={styles.sidebarLogo}>
           <div className={styles.logoMark}><RiLeafFill size={16} /></div>
@@ -304,7 +330,7 @@ export default function FarmerChat() {
                 </button>
                 <button
                   className={styles.deleteSessionBtn}
-                  onClick={(e) => deleteSession(s.id, e)}
+                  onClick={() => handleDeleteClick(s.id)}
                   title="Delete chat"
                 >
                   <MdDeleteOutline size={16} />
@@ -323,7 +349,7 @@ export default function FarmerChat() {
         <div className={styles.sidebarBottom}>
           <div className={styles.switchBox}>
             <div className={styles.switchLbl}>Switch Role</div>
-            <button className={styles.switchBtn} onClick={() => navigate("/buyer")}>
+            <button className={styles.switchBtn} onClick={switchToBuyerSeller}>
               <MdSwapHoriz size={14} /> Switch to Buyer / Seller
             </button>
           </div>
@@ -340,10 +366,7 @@ export default function FarmerChat() {
 
           <button
             className={styles.sidebarBottomBtn}
-            onClick={() => {
-              authService.clearSession();
-              navigate("/login");
-            }}
+            onClick={handleLogout}
           >
             <div className={`${styles.sidebarBottomIcon} ${styles.logoutIcon}`}>
               <MdOutlineLogout size={16} />
@@ -353,7 +376,6 @@ export default function FarmerChat() {
         </div>
       </aside>
 
-      {/* ── MAIN ── */}
       <div className={styles.main}>
         <header className={styles.topbar}>
           <button className={styles.menuBtn} onClick={() => setSidebarOpen((p) => !p)}>
@@ -366,7 +388,6 @@ export default function FarmerChat() {
           <div className={styles.topbarAvatar}>{initials}</div>
         </header>
 
-        {/* ── Profile ── */}
         {activeSection === "profile" && (
           <div className={styles.profileWrap}>
             <div className={styles.profileCard}>
@@ -426,7 +447,6 @@ export default function FarmerChat() {
           </div>
         )}
 
-        {/* ── Chat ── */}
         {activeSection === "chat" && (
           <>
             <div className={styles.chatArea}>
